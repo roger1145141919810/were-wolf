@@ -4,58 +4,66 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 
 const app = express();
-app.use(cors()); // 允許跨網域連線，讓 GitHub Pages 可以連到 Render
+app.use(cors());
 
 const server = http.createServer(app);
 const io = new Server(server, {
-    cors: {
-        origin: "*", 
-        methods: ["GET", "POST"]
-    }
+    cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
 let players = [];
+let hostId = null; // 紀錄房長的 ID
 
 io.on('connection', (socket) => {
-    console.log('有玩家連線:', socket.id);
-
-    // 1. 玩家加入遊戲
+    // 1. 加入遊戲
     socket.on('joinGame', (username) => {
-        const player = { id: socket.id, name: username, role: null };
+        // 如果還沒有房長，第一個加入的人自動變成房長
+        if (!hostId) {
+            hostId = socket.id;
+        }
+        const player = { id: socket.id, name: username, role: null, isHost: (socket.id === hostId) };
         players.push(player);
-        io.emit('updatePlayers', players); // 廣播最新名單給所有人
-        console.log(`${username} 加入了遊戲`);
+        
+        io.emit('updatePlayers', players);
+        socket.emit('hostStatus', socket.id === hostId); // 告訴該玩家他是不是房長
+        console.log(`${username} 加入了，房長狀態: ${player.isHost}`);
     });
 
-    // 2. 聊天訊息轉發 (新增)
+    // 2. 搶當房長 (如果原本房長斷線或想換人)
+    socket.on('claimHost', () => {
+        hostId = socket.id;
+        players.forEach(p => p.isHost = (p.id === hostId));
+        io.emit('updatePlayers', players);
+        io.emit('hostChanged', hostId); // 廣播新房長產生
+    });
+
+    // 3. 聊天訊息
     socket.on('sendMessage', (data) => {
-        // 接收到訊息後，立刻廣播給所有人（包含發送者自己）
         io.emit('receiveMessage', data);
-        console.log(`聊天訊息 - ${data.name}: ${data.text}`);
     });
 
-    // 3. 開始遊戲與發牌
+    // 4. 開始遊戲
     socket.on('startGame', () => {
-        const roles = ['狼人', '預言家', '女巫', '村民', '村民', '村民'];
-        // 隨機分配身分
+        const roles = ['狼人', '預言家', '女巫', '獵人', '村民', '村民'];
         players.forEach((player, index) => {
             player.role = roles[index % roles.length];
-            // 只把身分私下傳給該玩家
             io.to(player.id).emit('assignRole', player.role);
         });
-        console.log('遊戲開始，身分已發放');
+        io.emit('receiveMessage', { name: "系統", text: "🔥 遊戲開始！身分已發放，請查看下方身分欄。" });
     });
 
-    // 4. 斷線處理
+    // 5. 斷線處理
     socket.on('disconnect', () => {
+        const wasHost = (socket.id === hostId);
         players = players.filter(p => p.id !== socket.id);
+        if (wasHost) {
+            hostId = players.length > 0 ? players[0].id : null; // 自動移交給下一個人
+            if (hostId) players[0].isHost = true;
+        }
         io.emit('updatePlayers', players);
-        console.log('有玩家離開了');
+        if (wasHost) io.emit('hostChanged', hostId);
     });
 });
 
-// 使用 Render 提供的 Port，否則預設 3000
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`狼人殺伺服器已啟動！跑在 Port: ${PORT}`);
-});
+server.listen(PORT, () => console.log(`伺服器跑在 ${PORT}`));
