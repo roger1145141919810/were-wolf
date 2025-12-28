@@ -62,13 +62,16 @@ io.on('connection', (socket) => {
         if (!room) return;
 
         if (roomTimers[roomId]) clearInterval(roomTimers[roomId]);
-        room.status = 'playing'; // 前端 night 樣式通常綁定非 day 狀態
+        
+        // 🚩 修正：將狀態設為 'night' (或非 'day')，讓前端知道要隱藏按鈕
+        room.status = 'playing'; 
         room.skipVotes = new Set(); 
 
         io.to(roomId).emit('receiveMessage', { name: "系統", text: "🌙 天黑請閉眼，進入黑夜階段...", isSystem: true });
+        
+        // 🚩 關鍵：立即發送 updatePlayers，強制前端隱藏「跳過按鈕」
         io.to(roomId).emit('updatePlayers', { players: room.players, status: room.status });
 
-        // 觸發前端 CSS
         room.players.forEach(p => { io.to(p.id).emit('assignRole', p.role); });
 
         let nightLeft = 30;
@@ -108,6 +111,10 @@ io.on('connection', (socket) => {
 
         let timeLeft = 300; 
         io.to(roomId).emit('timerUpdate', timeLeft);
+        
+        // 🚩 啟動白天時也要同步一次狀態，讓按鈕出現
+        io.to(roomId).emit('updatePlayers', { players: room.players, status: room.status });
+
         roomTimers[roomId] = setInterval(() => {
             timeLeft--;
             io.to(roomId).emit('timerUpdate', timeLeft);
@@ -125,7 +132,10 @@ io.on('connection', (socket) => {
         const required = Math.max(1, aliveCount - 1); 
 
         io.to(roomId).emit('receiveMessage', { name: "系統", text: `⏭️ ${socket.username} 投票跳過 (${room.skipVotes.size}/${required})`, isSystem: true });
-        if (room.skipVotes.size >= required) { triggerNight(roomId); }
+        
+        if (room.skipVotes.size >= required) { 
+            triggerNight(roomId); 
+        }
     });
 
     // 【斷線 & 自動刷新邏輯】
@@ -136,7 +146,6 @@ io.on('connection', (socket) => {
 
         room.players = room.players.filter(p => p.id !== socket.id);
 
-        // 1. 房間無人：徹底刷新(刪除)
         if (room.players.length === 0) {
             if (roomTimers[roomId]) clearInterval(roomTimers[roomId]);
             delete rooms[roomId];
@@ -145,10 +154,7 @@ io.on('connection', (socket) => {
         }
 
         if (room.status !== 'waiting') {
-            // 2. 遊戲中斷線判定淘汰
             checkGameOver(roomId);
-            
-            // 3. 檢查是否全體淘汰
             const anyAlive = room.players.some(p => p.isAlive);
             if (!anyAlive) {
                 io.to(roomId).emit('receiveMessage', { name: "系統", text: "♻️ 所有玩家已淘汰，房間自動重置。", isSystem: true });
@@ -156,7 +162,6 @@ io.on('connection', (socket) => {
                 return;
             }
         } else if (socket.id === room.hostId) {
-            // 4. 等待中房長離開移交
             const newHost = room.players[0];
             room.hostId = newHost.id;
             newHost.isHost = true;
@@ -184,6 +189,8 @@ io.on('connection', (socket) => {
             clearInterval(roomTimers[roomId]);
             delete roomTimers[roomId];
         }
+        // 🚩 遊戲結束也要同步一次狀態
+        io.to(roomId).emit('updatePlayers', { players: rooms[roomId].players, status: rooms[roomId].status });
     }
 
     socket.on('sendMessage', (d) => io.to(socket.roomId).emit('receiveMessage', d));
