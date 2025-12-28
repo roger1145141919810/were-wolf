@@ -12,7 +12,7 @@ let rooms = {};
 let roomTimers = {};
 
 io.on('connection', (socket) => {
-    // --- 進入房間與機器人邏輯保持不變 ---
+    // --- 進入房間 ---
     socket.on('joinRoom', ({ roomId, username }) => {
         if (!rooms[roomId]) {
             rooms[roomId] = { 
@@ -22,10 +22,14 @@ io.on('connection', (socket) => {
             };
         }
         const room = rooms[roomId];
+        
+        // 只有在 waiting 狀態才允許加入
         if (room.status !== 'waiting') return socket.emit('errorMessage', '❌ 遊戲進行中');
+        
         socket.join(roomId);
         socket.roomId = roomId;
         socket.username = username;
+        
         const player = { id: socket.id, name: username, role: null, isHost: room.players.length === 0, isAlive: true, isBot: false };
         if (player.isHost) room.hostId = socket.id;
         room.players.push(player);
@@ -36,6 +40,7 @@ io.on('connection', (socket) => {
         const room = rooms[socket.roomId];
         if (!room || room.status !== 'waiting') return;
         const needed = 6 - room.players.length;
+        if (needed <= 0) return;
         for (let i = 1; i <= needed; i++) {
             const botId = `bot_${Math.random().toString(36).substr(2, 5)}`;
             room.players.push({ id: botId, name: `機器人${i}號`, role: null, isHost: false, isAlive: true, isBot: true });
@@ -43,11 +48,10 @@ io.on('connection', (socket) => {
         broadcastUpdate(socket.roomId);
     });
 
-    // --- 核心修復：狼人頻道通訊 ---
+    // --- 狼人通訊 ---
     socket.on('sendWolfMessage', (d) => {
         const room = rooms[socket.roomId];
         if (!room) return;
-        // 只發送給房間內身分是狼人的玩家
         room.players.forEach(p => {
             if (p.role === '狼人' && !p.isBot) {
                 io.to(p.id).emit('receiveWolfMessage', d);
@@ -55,7 +59,7 @@ io.on('connection', (socket) => {
         });
     });
 
-    // --- 核心修復：預言家技能 ---
+    // --- 預言家驗人 ---
     socket.on('checkRole', (targetId) => {
         const room = rooms[socket.roomId];
         const me = room?.players.find(p => p.id === socket.id);
@@ -66,19 +70,18 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- 核心修復：女巫技能（僅能救死人） ---
+    // --- 女巫技能 ---
     socket.on('witchAction', ({ type, targetId }) => {
         const room = rooms[socket.roomId];
         const me = room?.players.find(p => p.id === socket.id);
         if (room?.status === 'night_witch' && me?.role === '女巫' && me?.isAlive) {
             if (type === 'save') {
-                // 檢查是否還有解藥，且目標是否為今晚被殺的人
                 if (room.witchHasSave && targetId === room.nightAction.finalKilledId) {
                     room.nightAction.savedId = targetId;
                     room.witchHasSave = false;
                     socket.emit('errorMessage', '✅ 已使用解藥');
                 } else {
-                    socket.emit('errorMessage', '❌ 無法救此人（解藥已用完或對象非死者）');
+                    socket.emit('errorMessage', '❌ 無法救此人');
                 }
             } else if (type === 'poison') {
                 if (room.witchHasPoison) {
@@ -93,7 +96,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- 核心修正：白天發言時間調整為 10 分鐘 ---
+    // --- 結算夜晚 ---
     function settleNight(roomId) {
         const room = rooms[roomId];
         if (!room) return;
@@ -111,14 +114,12 @@ io.on('connection', (socket) => {
             room.status = 'day';
             room.skipVotes = new Set();
             broadcastUpdate(roomId);
-            
-            // 白天發言時間改為 600 秒 (10 分鐘)
             startTimer(roomId, 600, () => startVoting(roomId));
             setTimeout(() => handleBotActions(roomId, 'day'), 5000);
         }
     }
 
-    // --- 狼人與投票邏輯 ---
+    // --- 狼人行動邏輯 ---
     socket.on('wolfKill', (targetId) => {
         const room = rooms[socket.roomId];
         if (room?.status === 'night_wolf') {
@@ -134,6 +135,8 @@ io.on('connection', (socket) => {
             room.nightAction.wolfConfirmations[socket.id] = true;
             const aliveWolves = room.players.filter(p => p.role === '狼人' && p.isAlive);
             const myTarget = room.nightAction.wolfVotes[socket.id];
+            
+            // 讓同隊機器人跟票
             aliveWolves.forEach(w => {
                 if (w.isBot) {
                     room.nightAction.wolfVotes[w.id] = myTarget;
@@ -172,19 +175,26 @@ io.on('connection', (socket) => {
         });
     }
 
-    // --- 其餘輔助函數 (startGame, startVoting, settleVote, startTimer, broadcastUpdate, checkGameOver 等) 保持與之前一致 ---
+    // --- 開始遊戲 ---
     socket.on('startGame', () => {
         const room = rooms[socket.roomId];
         if (!room || room.players.length < 6) return socket.emit('errorMessage', '人數不足 6 人');
-        room.witchHasSave = true; room.witchHasPoison = true;
+        
+        room.status = 'night_wolf'; // 確保狀態改變
+        room.witchHasSave = true; 
+        room.witchHasPoison = true;
         const roles = ['狼人', '狼人', '預言家', '女巫', '村民', '村民'].sort(() => Math.random() - 0.5);
-        room.players.forEach((p, i) => { p.isAlive = true; p.role = roles[i]; if (!p.isBot) io.to(p.id).emit('assignRole', p.role); });
+        room.players.forEach((p, i) => { 
+            p.isAlive = true; 
+            p.role = roles[i]; 
+            if (!p.isBot) io.to(p.id).emit('assignRole', p.role); 
+        });
         triggerNight(socket.roomId);
     });
 
     socket.on('castVote', (targetId) => {
         const room = rooms[socket.roomId];
-        if (room?.status === 'voting') {
+        if (room?.status === 'voting' && !room.votes[socket.id]) {
             room.votes[socket.id] = targetId;
             const aliveCount = room.players.filter(p => p.isAlive).length;
             if (Object.keys(room.votes).length >= aliveCount) settleVote(socket.roomId);
@@ -226,14 +236,51 @@ io.on('connection', (socket) => {
         if (!checkGameOver(roomId)) triggerNight(roomId);
     }
 
+    // --- 計時器與輔助功能 ---
     function startTimer(roomId, time, cb) {
         if (roomTimers[roomId]) clearInterval(roomTimers[roomId]);
         let t = time;
         roomTimers[roomId] = setInterval(() => {
             io.to(roomId).emit('timerUpdate', t);
-            if (t <= 0) { clearInterval(roomTimers[roomId]); cb(); }
+            if (t <= 0) { 
+                clearInterval(roomTimers[roomId]); 
+                delete roomTimers[roomId];
+                cb(); 
+            }
             t--;
         }, 1000);
+    }
+
+    function checkGameOver(roomId) {
+        const room = rooms[roomId];
+        const alives = room.players.filter(p => p.isAlive);
+        const wolves = alives.filter(p => p.role === '狼人').length;
+        
+        let winner = null;
+        if (wolves === 0) winner = "🎉 好人陣營";
+        else if (wolves >= (alives.length - wolves)) winner = "🐺 狼人陣營";
+
+        if (winner) {
+            io.to(roomId).emit('gameOver', { winner });
+            
+            // --- 核心修復：重置房間為等待狀態 ---
+            room.status = 'waiting';
+            room.players.forEach(p => {
+                p.isAlive = true; 
+                p.role = null; 
+            });
+            room.votes = {};
+            room.skipVotes = new Set();
+            
+            if (roomTimers[roomId]) {
+                clearInterval(roomTimers[roomId]);
+                delete roomTimers[roomId];
+            }
+            
+            broadcastUpdate(roomId);
+            return true;
+        }
+        return false;
     }
 
     function handleBotActions(roomId, phase) {
@@ -244,10 +291,14 @@ io.on('connection', (socket) => {
         aliveBots.forEach(bot => {
             if (phase === 'night_wolf' && bot.role === '狼人') {
                 const target = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
-                room.nightAction.wolfVotes[bot.id] = target.id; room.nightAction.wolfConfirmations[bot.id] = true;
+                room.nightAction.wolfVotes[bot.id] = target.id; 
+                room.nightAction.wolfConfirmations[bot.id] = true;
             }
             if (phase === 'night_witch' && bot.role === '女巫') {
-                if (room.witchHasSave && room.nightAction.finalKilledId) { room.nightAction.savedId = room.nightAction.finalKilledId; room.witchHasSave = false; }
+                if (room.witchHasSave && room.nightAction.finalKilledId) { 
+                    room.nightAction.savedId = room.nightAction.finalKilledId; 
+                    room.witchHasSave = false; 
+                }
             }
             if (phase === 'day' && room.status === 'day') room.skipVotes.add(bot.id);
             if (phase === 'voting' && !room.votes[bot.id]) {
@@ -272,38 +323,47 @@ io.on('connection', (socket) => {
         const votes = aliveWolves.map(w => room.nightAction.wolfVotes[w.id]);
         const uniqueVotes = [...new Set(votes.filter(v => v !== null))];
         if (confirms.length === aliveWolves.length && uniqueVotes.length === 1) {
-            room.nightAction.finalKilledId = uniqueVotes[0]; triggerWitchPhase(roomId);
+            room.nightAction.finalKilledId = uniqueVotes[0]; 
+            triggerWitchPhase(roomId);
         }
     }
 
     function broadcastUpdate(roomId) {
         const r = rooms[roomId];
         if (!r) return;
-        io.to(roomId).emit('updatePlayers', { players: r.players, status: r.status, witchPotions: { hasSave: r.witchHasSave, hasPoison: r.witchHasPoison } });
+        io.to(roomId).emit('updatePlayers', { 
+            players: r.players, 
+            status: r.status, 
+            witchPotions: { hasSave: r.witchHasSave, hasPoison: r.witchHasPoison } 
+        });
     }
 
     function syncWolfUI(room) {
         const aliveWolves = room.players.filter(p => p.role === '狼人' && p.isAlive);
-        const data = aliveWolves.map(w => ({ id: w.id, targetId: room.nightAction.wolfVotes[w.id] || null, isConfirmed: !!room.nightAction.wolfConfirmations[w.id] }));
+        const data = aliveWolves.map(w => ({ 
+            id: w.id, 
+            targetId: room.nightAction.wolfVotes[w.id] || null, 
+            isConfirmed: !!room.nightAction.wolfConfirmations[w.id] 
+        }));
         aliveWolves.forEach(w => { if (!w.isBot) io.to(w.id).emit('updateWolfUI', data); });
     }
 
-    function checkGameOver(roomId) {
-        const room = rooms[roomId];
-        const alives = room.players.filter(p => p.isAlive);
-        const w = alives.filter(p => p.role === '狼人').length;
-        if (w === 0) { io.to(roomId).emit('gameOver', { winner: "🎉 好人陣營" }); return true; }
-        if (w >= (alives.length - w)) { io.to(roomId).emit('gameOver', { winner: "🐺 狼人陣營" }); return true; }
-        return false;
-    }
-
     socket.on('sendMessage', (d) => io.to(socket.roomId).emit('receiveMessage', d));
+
     socket.on('disconnect', () => {
         const room = rooms[socket.roomId];
         if (room) {
             room.players = room.players.filter(p => p.id !== socket.id);
-            if (room.players.length === 0) { clearInterval(roomTimers[socket.roomId]); delete rooms[socket.roomId]; }
-            else { if (socket.id === room.hostId) { room.hostId = room.players[0].id; room.players[0].isHost = true; } broadcastUpdate(socket.roomId); }
+            if (room.players.length === 0) { 
+                clearInterval(roomTimers[socket.roomId]); 
+                delete rooms[socket.roomId]; 
+            } else { 
+                if (socket.id === room.hostId) { 
+                    room.hostId = room.players[0].id; 
+                    room.players[0].isHost = true; 
+                } 
+                broadcastUpdate(socket.roomId); 
+            }
         }
     });
 });
