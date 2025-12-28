@@ -101,6 +101,19 @@
             document.getElementById("game").classList.remove("hidden");
             document.getElementById("pCount").textContent = ps.length;
         });
+        // 【新增：房長按鈕動態狀態】
+        if (amIHost) {
+            const startBtn = document.getElementById("startBtn");
+            if (ps.length < 6) {
+                startBtn.disabled = true;
+                startBtn.style.background = "#555"; // 灰色代表不能按
+                startBtn.innerText = `人數不足 (${ps.length}/6)`;
+            } else {
+                startBtn.disabled = false;
+                startBtn.style.background = "#27ae60"; // 綠色代表可以開始
+                startBtn.innerText = "人數已齊全，點擊開始遊戲";
+            }
+        }
 
         // 3. 聊天功能
         function sendMessage() {
