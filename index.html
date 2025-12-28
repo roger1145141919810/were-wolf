@@ -1,250 +1,177 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🐺 狼人殺：功能測試版</title>
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <style>
-        :root { --primary-red: #e94560; --primary-green: #27ae60; --accent-gold: #f1c40f; --me-blue: #3498db; }
-        body { font-family: sans-serif; background: #1a1a2e; color: #e0e0e0; text-align: center; margin: 0; transition: background 0.5s; overflow-x: hidden; }
-        body.night-mode { background: #0b0b1a; }
-        body.day-mode { background: #2c3e50; }
-        section { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; margin: 10px auto; max-width: 400px; border: 1px solid rgba(255,255,255,0.1); }
-        .player-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; margin: 5px 0; background: rgba(255,255,255,0.03); border-radius: 8px; border: 2px solid transparent; }
-        .player-item.dead { opacity: 0.4; filter: grayscale(0.8); background: rgba(0,0,0,0.4); text-decoration: line-through; }
-        .player-item.is-me { border-color: var(--me-blue); background: rgba(52, 152, 219, 0.15); }
-        .is-wolf { color: var(--primary-red); font-weight: bold; text-shadow: 0 0 5px black; }
-        .vote-indicator { display: flex; gap: 4px; margin-left: 8px; }
-        .wolf-dot { width: 10px; height: 10px; background: var(--primary-red); border-radius: 50%; border: 1px solid white; transition: 0.3s; }
-        .action-btn { padding: 6px 12px; font-size: 13px; border: none; border-radius: 4px; cursor: pointer; color: white; margin: 0 2px; font-weight: bold; }
-        .chat-area { height: 120px; overflow-y: auto; background: rgba(0,0,0,0.3); padding: 8px; text-align: left; margin-bottom: 5px; border: 1px solid #444; font-size: 14px; border-radius: 4px; }
-        .hidden { display: none !important; }
-        input { background: #333; color: white; border: 1px solid #555; padding: 10px; border-radius: 4px; width: 85%; margin-bottom: 10px; }
-        #timerDisplay { font-size: 40px; font-weight: bold; margin: 10px 0; text-shadow: 0 0 10px rgba(0,0,0,0.5); }
-        #timerDisplay.day-timer { color: var(--accent-gold); }
-        #timerDisplay.night-timer { color: var(--primary-red); }
-        .wolf-chat-container { border: 2px solid var(--primary-red); background: rgba(233, 69, 96, 0.05); }
-    </style>
-</head>
-<body>
-    <div id="setup">
-        <section>
-            <h2 style="color: var(--accent-gold);">🐺 狼人殺：連線測試版</h2>
-            <input type="text" id="roomInput" placeholder="房間號碼">
-            <input type="text" id="username" placeholder="暱稱">
-            <button onclick="join()" style="width:90%; background:var(--primary-green); color:white; padding:15px; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">進入遊戲</button>
-        </section>
-    </div>
+<script>
+    const socket = io("https://were-wolf.onrender.com");
+    let myName = "", myRole = null, amIHost = false, isAlive = true;
+    let wolfStatusData = [], witchPotions = { hasSave: true, hasPoison: true };
+    let lastPlayers = [];
 
-    <main id="game" class="hidden">
-        <section>
-            <div style="margin-bottom: 5px;">當前階段：<span id="gamePhase" style="color:var(--accent-gold); font-weight:bold;">等待中</span></div>
-            <div id="myRole" style="font-size: 1.4em; margin: 10px 0; font-weight: bold;">⏳ 等待發牌...</div>
-            <div id="timerDisplay" class="day-timer">--:--</div>
-            <div id="nightNotice" style="color: var(--accent-gold); font-size: 15px; min-height: 24px; font-weight: bold;"></div>
-            
-            <div id="hostControls" class="hidden">
-                <button id="startBtn" onclick="socket.emit('startGame')" style="background:var(--primary-green); color:white; padding:12px 25px; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">正式開始</button>
-                <div style="margin-top:10px;">
-                    <button onclick="socket.emit('addTestBots')" style="background:#555; color:white; padding:8px 15px; border:none; border-radius:5px; cursor:pointer; font-size:12px;">🤖 補滿機器人測試</button>
-                </div>
-            </div>
+    function join() {
+        myName = document.getElementById("username").value.trim();
+        const r = document.getElementById("roomInput").value.trim();
+        if(r && myName) socket.emit('joinRoom', { roomId: r, username: myName });
+        else alert("請輸入房號與暱稱");
+    }
 
-            <button id="skipBtn" class="hidden" onclick="socket.emit('castSkipVote')" style="background:var(--me-blue); color:white; padding:15px; border:none; border-radius:8px; font-weight:bold; cursor:pointer; width: 100%; margin-top: 10px;">⏭️ 我發言完了 (跳過)</button>
-        </section>
-
-        <section id="wolfSection" class="hidden wolf-chat-container">
-            <div style="color: var(--primary-red); font-weight: bold; margin-bottom:5px;">🐾 狼人私密對話</div>
-            <div id="wolfChatBox" class="chat-area"></div>
-            <input type="text" id="wolfInput" placeholder="與隊友策劃中..." onkeypress="if(event.key==='Enter') sendWolfChat()" style="width:85%; border-color:var(--primary-red)">
-        </section>
-
-        <section>
-            <h3 style="margin-top:0;">👥 玩家名單</h3>
-            <div id="playerList"></div>
-        </section>
-
-        <section>
-            <div id="chatBox" class="chat-area"></div>
-            <input type="text" id="chatInput" placeholder="公開討論..." onkeypress="if(event.key==='Enter') send()" style="width:85%;">
-        </section>
-    </main>
-
-    <script>
-        const socket = io("https://were-wolf.onrender.com");
-        let myName = "", myRole = null, amIHost = false, isAlive = true;
-        let wolfStatusData = [], witchPotions = { hasSave: true, hasPoison: true };
-        let lastPlayers = [];
-
-        function join() {
-            myName = document.getElementById("username").value.trim();
-            const r = document.getElementById("roomInput").value.trim();
-            if(r && myName) socket.emit('joinRoom', { roomId: r, username: myName });
-            else alert("請輸入房號與暱稱");
+    socket.on('updatePlayers', ({ players, status, witchPotions: wp }) => {
+        document.getElementById("setup").classList.add("hidden");
+        document.getElementById("game").classList.remove("hidden");
+        lastPlayers = players;
+        
+        const me = players.find(p => p.id === socket.id);
+        if(me) { 
+            isAlive = me.isAlive; 
+            amIHost = me.isHost; 
         }
+        if(wp) witchPotions = wp;
 
-        socket.on('updatePlayers', ({ players, status, witchPotions: wp }) => {
-            document.getElementById("setup").classList.add("hidden");
-            document.getElementById("game").classList.remove("hidden");
-            lastPlayers = players;
-            
-            const me = players.find(p => p.id === socket.id);
-            if(me) { 
-                isAlive = me.isAlive; 
-                amIHost = me.isHost; 
-            }
-            if(wp) witchPotions = wp;
-
-            const phaseEl = document.getElementById("gamePhase");
-            phaseEl.innerText = translateStatus(status);
-            
-            const isNight = status.startsWith('night');
-            document.body.className = isNight ? "night-mode" : (status === 'day' ? "day-mode" : "");
-            document.getElementById("timerDisplay").className = isNight ? "night-timer" : "day-timer";
-            
-            // 房主控制按鈕僅在等待階段顯示
-            document.getElementById("hostControls").classList.toggle("hidden", !amIHost || status !== 'waiting');
-            
-            if (status === 'waiting') {
-                // 重置所有遊戲中的視覺提示
-                document.getElementById("myRole").innerText = "⏳ 等待發牌...";
-                document.getElementById("myRole").style.color = "white";
-                document.getElementById("nightNotice").innerText = "";
-                document.getElementById("timerDisplay").innerText = "--:--";
-                myRole = null; // 清除本地身分緩存
-            }
-
-            if (!isNight && status !== 'waiting') document.getElementById("nightNotice").innerText = "";
-
-            renderList(players, status);
-        });
-
-        function translateStatus(s) {
-            const map = { 'waiting': '等待開局', 'night_wolf': '狼人行動', 'night_witch': '女巫行動', 'night_seer': '預言家驗人', 'day': '自由發言', 'voting': '投票放逐' };
-            return map[s] || s;
-        }
-
-        socket.on('updateWolfUI', (data) => {
-            wolfStatusData = data;
-            renderList(lastPlayers, document.getElementById("gamePhase").innerText);
-        });
-
-        function renderList(players, status) {
-            if(!players || players.length === 0) return;
-            const list = document.getElementById("playerList");
-            list.innerHTML = "";
-            
-            players.forEach(p => {
-                const isMe = p.id === socket.id;
-                const div = document.createElement("div");
-                div.className = `player-item ${!p.isAlive ? 'dead' : ''} ${isMe ? 'is-me' : ''}`;
-                
-                // 狼人小紅點
-                let dots = '<div class="vote-indicator">';
-                if (myRole === '狼人' && status.startsWith('night')) {
-                    wolfStatusData.filter(v => v.targetId === p.id).forEach(v => {
-                        dots += `<div class="wolf-dot" style="${v.isConfirmed ? 'box-shadow: 0 0 8px #f1c40f; border-color:#f1c40f;' : ''}"></div>`;
-                    });
-                }
-                dots += '</div>';
-
-                // 行動按鈕邏輯
-                let btns = `<div>`;
-                if (isAlive && p.isAlive && status !== 'waiting') {
-                    if (status === 'night_wolf' && myRole === '狼人') 
-                        btns += `<button class="action-btn" style="background:var(--primary-red)" onclick="socket.emit('wolfKill','${p.id}')">選</button>`;
-                    
-                    if (status === 'night_witch' && myRole === '女巫') {
-                        if(witchPotions.hasSave) btns += `<button class="action-btn" style="background:var(--primary-green)" onclick="socket.emit('witchAction',{type:'save',targetId:'${p.id}'})">救</button>`;
-                        if(witchPotions.hasPoison) btns += `<button class="action-btn" style="background:#8e44ad" onclick="socket.emit('witchAction',{type:'poison',targetId:'${p.id}'})">毒</button>`;
-                    }
-                    
-                    if (status === 'night_seer' && myRole === '預言家' && !isMe) 
-                        btns += `<button class="action-btn" style="background:var(--me-blue)" onclick="socket.emit('checkRole','${p.id}')">驗</button>`;
-                    
-                    if (status === 'voting' && !isMe) 
-                        btns += `<button class="action-btn" style="background:var(--accent-gold)" onclick="socket.emit('castVote','${p.id}')">投</button>`;
-                }
-                btns += `</div>`;
-
-                const roleClass = (myRole === '狼人' && p.role === '狼人') ? 'is-wolf' : '';
-                const nameTag = `${p.isHost ? '👑 ' : ''}${p.isBot ? '🤖 ' : ''}${p.name}${isMe ? ' (我)' : ''}`;
-                
-                div.innerHTML = `<span><span class="${roleClass}">${nameTag}</span>${dots}</span>${btns}`;
-                list.appendChild(div);
-            });
-
-            if (status === 'night_wolf' && myRole === '狼人' && isAlive) {
-                const myV = wolfStatusData.find(v => v.id === socket.id);
-                const b = document.createElement("button");
-                b.innerText = myV?.isConfirmed ? "✅ 已確認殺害" : "🔒 確定此目標";
-                b.disabled = !myV?.targetId || myV?.isConfirmed;
-                b.onclick = () => socket.emit('wolfConfirm');
-                b.style = `width:100%; margin-top:10px; background:${myV?.isConfirmed?'#444':'var(--primary-red)'}; color:white; padding:12px; border:none; border-radius:8px; cursor:pointer; font-weight:bold;`;
-                list.appendChild(b);
-            }
-
-            document.getElementById("skipBtn").classList.toggle("hidden", status !== 'day' || !isAlive);
-            document.getElementById("wolfSection").classList.toggle("hidden", myRole !== '狼人' || status === 'waiting');
-        }
-
-        socket.on('assignRole', r => { 
-            myRole = r; 
-            const el = document.getElementById("myRole");
-            el.innerText = "你的身分：" + r; 
-            el.style.color = (r === '狼人' ? 'var(--primary-red)' : 'var(--primary-green)');
-        });
-
-        socket.on('timerUpdate', s => {
-            const timerEl = document.getElementById("timerDisplay");
-            if (s >= 60) {
-                const mins = Math.floor(s / 60);
-                const secs = (s % 60).toString().padStart(2, '0');
-                timerEl.innerText = `${mins}:${secs}`;
-            } else {
-                timerEl.innerText = s;
-            }
-        });
-
-        socket.on('receiveMessage', d => { 
-            const b = document.getElementById("chatBox"); 
-            b.innerHTML += `<div><span style="color:var(--accent-gold)">${d.name}:</span> ${d.text}</div>`; 
-            b.scrollTop = b.scrollHeight; 
-        });
-
-        socket.on('receiveWolfMessage', d => { 
-            const b = document.getElementById("wolfChatBox"); 
-            b.innerHTML += `<div><span style="color:var(--primary-red)">${d.name}:</span> ${d.text}</div>`; 
-            b.scrollTop = b.scrollHeight; 
-        });
-
-        socket.on('witchTarget', d => { 
-            if(myRole === '女巫') document.getElementById("nightNotice").innerText = `🧪 系統通知：${d.name} 昨晚倒下了`; 
-        });
-
-        socket.on('checkResult', m => alert(m));
-        socket.on('errorMessage', m => alert(m));
-
-        socket.on('gameOver', d => { 
-            setTimeout(() => {
-                alert("遊戲結束！\n贏家是：" + d.winner + "\n\n房號仍有效，原班人馬可繼續進行下一局。"); 
-            }, 500);
-            // 移除 location.reload();
-            myRole = null;
+        const phaseEl = document.getElementById("gamePhase");
+        phaseEl.innerText = translateStatus(status);
+        
+        const isNight = status.startsWith('night');
+        document.body.className = isNight ? "night-mode" : (status === 'day' ? "day-mode" : "");
+        document.getElementById("timerDisplay").className = isNight ? "night-timer" : "day-timer";
+        
+        document.getElementById("hostControls").classList.toggle("hidden", !amIHost || status !== 'waiting');
+        
+        // --- BUG 修正點 1: 在等待階段強制重置前端變數與 UI ---
+        if (status === 'waiting') {
+            myRole = null; 
             wolfStatusData = [];
+            document.getElementById("myRole").innerText = "⏳ 等待發牌...";
+            document.getElementById("myRole").style.color = "white";
+            document.getElementById("nightNotice").innerText = "";
+            document.getElementById("timerDisplay").innerText = "--:--";
+            document.getElementById("wolfChatBox").innerHTML = ""; // 額外重置狼人聊天室
+        }
+
+        if (!isNight && status !== 'waiting') document.getElementById("nightNotice").innerText = "";
+
+        renderList(players, status);
+    });
+
+    function translateStatus(s) {
+        const map = { 'waiting': '等待開局', 'night_wolf': '狼人行動', 'night_witch': '女巫行動', 'night_seer': '預言家驗人', 'day': '自由發言', 'voting': '投票放逐' };
+        return map[s] || s;
+    }
+
+    socket.on('updateWolfUI', (data) => {
+        wolfStatusData = data;
+        renderList(lastPlayers, document.getElementById("gamePhase").innerText);
+    });
+
+    function renderList(players, status) {
+        if(!players || players.length === 0) return;
+        const list = document.getElementById("playerList");
+        list.innerHTML = "";
+        
+        players.forEach(p => {
+            const isMe = p.id === socket.id;
+            const div = document.createElement("div");
+            div.className = `player-item ${!p.isAlive ? 'dead' : ''} ${isMe ? 'is-me' : ''}`;
+            
+            let dots = '<div class="vote-indicator">';
+            // --- BUG 修正點 2: 嚴格檢查自己是狼人才渲染紅點 ---
+            if (myRole === '狼人' && status.startsWith('night')) {
+                wolfStatusData.filter(v => v.targetId === p.id).forEach(v => {
+                    dots += `<div class="wolf-dot" style="${v.isConfirmed ? 'box-shadow: 0 0 8px #f1c40f; border-color:#f1c40f;' : ''}"></div>`;
+                });
+            }
+            dots += '</div>';
+
+            let btns = `<div>`;
+            if (isAlive && p.isAlive && status !== 'waiting') {
+                if (status === 'night_wolf' && myRole === '狼人') 
+                    btns += `<button class="action-btn" style="background:var(--primary-red)" onclick="socket.emit('wolfKill','${p.id}')">選</button>`;
+                
+                if (status === 'night_witch' && myRole === '女巫') {
+                    if(witchPotions.hasSave) btns += `<button class="action-btn" style="background:var(--primary-green)" onclick="socket.emit('witchAction',{type:'save',targetId:'${p.id}'})">救</button>`;
+                    if(witchPotions.hasPoison) btns += `<button class="action-btn" style="background:#8e44ad" onclick="socket.emit('witchAction',{type:'poison',targetId:'${p.id}'})">毒</button>`;
+                }
+                
+                if (status === 'night_seer' && myRole === '預言家' && !isMe) 
+                    btns += `<button class="action-btn" style="background:var(--me-blue)" onclick="socket.emit('checkRole','${p.id}')">驗</button>`;
+                
+                if (status === 'voting' && !isMe) 
+                    btns += `<button class="action-btn" style="background:var(--accent-gold)" onclick="socket.emit('castVote','${p.id}')">投</button>`;
+            }
+            btns += `</div>`;
+
+            // --- BUG 修正點 3: 嚴格檢查自己是狼人才渲染隊友姓名顏色 ---
+            const isWolfTeammate = (myRole === '狼人' && p.role === '狼人');
+            const roleClass = isWolfTeammate ? 'is-wolf' : '';
+            const nameTag = `${p.isHost ? '👑 ' : ''}${p.isBot ? '🤖 ' : ''}${p.name}${isMe ? ' (我)' : ''}`;
+            
+            div.innerHTML = `<span><span class="${roleClass}">${nameTag}</span>${dots}</span>${btns}`;
+            list.appendChild(div);
         });
 
-        function send() { 
-            const i = document.getElementById("chatInput"); 
-            if(i.value.trim()) socket.emit('sendMessage', {name: myName, text: i.value}); 
-            i.value=""; 
+        if (status === 'night_wolf' && myRole === '狼人' && isAlive) {
+            const myV = wolfStatusData.find(v => v.id === socket.id);
+            const b = document.createElement("button");
+            b.innerText = myV?.isConfirmed ? "✅ 已確認殺害" : "🔒 確定此目標";
+            b.disabled = !myV?.targetId || myV?.isConfirmed;
+            b.onclick = () => socket.emit('wolfConfirm');
+            b.style = `width:100%; margin-top:10px; background:${myV?.isConfirmed?'#444':'var(--primary-red)'}; color:white; padding:12px; border:none; border-radius:8px; cursor:pointer; font-weight:bold;`;
+            list.appendChild(b);
         }
-        function sendWolfChat() { 
-            const i = document.getElementById("wolfInput"); 
-            if(i.value.trim()) socket.emit('sendWolfMessage', {name: myName, text: i.value}); 
-            i.value=""; 
+
+        document.getElementById("skipBtn").classList.toggle("hidden", status !== 'day' || !isAlive);
+        document.getElementById("wolfSection").classList.toggle("hidden", myRole !== '狼人' || status === 'waiting');
+    }
+
+    socket.on('assignRole', r => { 
+        myRole = r; 
+        const el = document.getElementById("myRole");
+        el.innerText = "你的身分：" + r; 
+        el.style.color = (r === '狼人' ? 'var(--primary-red)' : 'var(--primary-green)');
+        // 確保發牌時清空舊通告
+        document.getElementById("nightNotice").innerText = "";
+    });
+
+    socket.on('timerUpdate', s => {
+        const timerEl = document.getElementById("timerDisplay");
+        if (s >= 60) {
+            const mins = Math.floor(s / 60);
+            const secs = (s % 60).toString().padStart(2, '0');
+            timerEl.innerText = `${mins}:${secs}`;
+        } else {
+            timerEl.innerText = s;
         }
-    </script>
-</body>
-</html>
+    });
+
+    socket.on('receiveMessage', d => { 
+        const b = document.getElementById("chatBox"); 
+        b.innerHTML += `<div><span style="color:var(--accent-gold)">${d.name}:</span> ${d.text}</div>`; 
+        b.scrollTop = b.scrollHeight; 
+    });
+
+    socket.on('receiveWolfMessage', d => { 
+        const b = document.getElementById("wolfChatBox"); 
+        b.innerHTML += `<div><span style="color:var(--primary-red)">${d.name}:</span> ${d.text}</div>`; 
+        b.scrollTop = b.scrollHeight; 
+    });
+
+    socket.on('witchTarget', d => { 
+        if(myRole === '女巫') document.getElementById("nightNotice").innerText = `🧪 系統通知：${d.name} 昨晚倒下了`; 
+    });
+
+    socket.on('checkResult', m => alert(m));
+    socket.on('errorMessage', m => alert(m));
+
+    socket.on('gameOver', d => { 
+        setTimeout(() => {
+            alert("遊戲結束！\n贏家是：" + d.winner + "\n\n房號仍有效，原班人馬可繼續進行下一局。"); 
+        }, 500);
+        // 此處不需額外動作，由 updatePlayers 的 'waiting' 狀態統一重置
+    });
+
+    function send() { 
+        const i = document.getElementById("chatInput"); 
+        if(i.value.trim()) socket.emit('sendMessage', {name: myName, text: i.value}); 
+        i.value=""; 
+    }
+    function sendWolfChat() { 
+        const i = document.getElementById("wolfInput"); 
+        if(i.value.trim()) socket.emit('sendWolfMessage', {name: myName, text: i.value}); 
+        i.value=""; 
+    }
+</script>
