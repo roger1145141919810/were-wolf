@@ -46,12 +46,13 @@ io.on('connection', (socket) => {
         if (room && socket.id === room.hostId && room.status === 'waiting') {
             const newHost = room.players.find(p => p.id === targetId);
             if (newHost) {
-                room.players.forEach(p => p.isHost = false); // 重置
+                room.players.forEach(p => p.isHost = false); // 重置所有人身分
                 room.hostId = newHost.id;
                 newHost.isHost = true;
+                
                 io.to(socket.roomId).emit('updatePlayers', { players: room.players, status: room.status });
-                io.to(targetId).emit('hostStatus', true);
-                socket.emit('hostStatus', false);
+                io.to(targetId).emit('hostStatus', true); // 通知新房長
+                socket.emit('hostStatus', false); // 通知舊房長權限移除
                 io.to(socket.roomId).emit('receiveMessage', { name: "系統", text: `👑 房長已轉移給 ${newHost.name}。`, isSystem: true });
             }
         }
@@ -108,9 +109,9 @@ io.on('connection', (socket) => {
         io.to(roomId).emit('receiveMessage', { name: "系統", text: `⏭️ ${socket.username} 投票跳過 (${room.skipVotes.size}/${required})`, isSystem: true });
 
         if (room.skipVotes.size >= required) {
-            clearInterval(roomTimers[roomId]);
+            if (roomTimers[roomId]) clearInterval(roomTimers[roomId]);
             io.to(roomId).emit('receiveMessage', { name: "系統", text: "✅ 票數達成，跳過白天。", isSystem: true });
-            room.status = 'playing'; // 或進入夜晚邏輯
+            room.status = 'playing'; 
         }
     });
 
@@ -127,7 +128,7 @@ io.on('connection', (socket) => {
     // 【訊息發送】
     socket.on('sendMessage', (d) => io.to(socket.roomId).emit('receiveMessage', d));
 
-    // 【斷線處理】修正重點
+    // 【斷線處理】
     socket.on('disconnect', () => {
         const roomId = socket.roomId;
         const room = rooms[roomId];
@@ -141,10 +142,13 @@ io.on('connection', (socket) => {
                 const newHost = room.players[randomIndex];
                 room.hostId = newHost.id;
                 newHost.isHost = true;
+                
+                // 關鍵：發送 hostStatus 給隨機選中的新房長
+                io.to(newHost.id).emit('hostStatus', true); 
+                
                 io.to(roomId).emit('receiveMessage', { name: "系統", text: `👑 房長離開，新房長由 ${newHost.name} 隨機擔任。`, isSystem: true });
             }
         } else {
-            // 遊戲中斷線標記死亡
             const p = room.players.find(x => x.id === socket.id);
             if (p && p.isAlive) {
                 p.isAlive = false;
