@@ -3,162 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🐺 終極連線狼人殺</title>
+    <title>🐺 終極狼人殺法官</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        :root { --primary: #e94560; --bg: #1a1a2e; --text: #ffffff; --gold: #f1c40f; }
-        * { box-sizing: border-box; }
-        body { font-family: 'PingFang TC', sans-serif; background: #2c3e50; color: var(--text); text-align: center; margin: 0; transition: background 1.5s ease; overflow-x: hidden; }
-        
-        /* 夜晚與白天視覺 */
-        body.night { background: #0f3460 !important; color: #ff4d4d !important; }
-        body.day { background: #f39c12 !important; color: #2c3e50 !important; }
-
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        section { background: rgba(0,0,0,0.3); padding: 20px; border-radius: 15px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
-
-        /* 輸入框與按鈕 */
-        input { width: 80%; padding: 12px; margin: 8px 0; border-radius: 8px; border: none; outline: none; font-size: 16px; }
-        button { padding: 12px 24px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; margin: 5px; }
-        .btn-main { background: var(--primary); color: white; width: 100%; font-size: 18px; }
-        .btn-host { background: var(--gold); color: #1a1a2e; }
-        .btn-sec { background: #34495e; color: white; font-size: 12px; }
-
-        /* 聊天室 */
-        #chatBox { height: 250px; overflow-y: auto; background: rgba(0,0,0,0.4); border-radius: 10px; padding: 15px; text-align: left; margin: 15px 0; border: 1px solid rgba(255,255,255,0.1); }
-        .msg { margin-bottom: 8px; line-height: 1.5; font-size: 14px; word-break: break-all; }
-        .msg-host { color: var(--gold); font-weight: bold; }
-        .msg-sys { color: #2ecc71; font-style: italic; }
-
-        /* 房長面板 */
-        .host-panel { display: none; border: 2px dashed var(--gold); padding: 15px; border-radius: 10px; margin-top: 15px; }
-        
-        #myRole { font-size: 32px; font-weight: bold; color: var(--gold); text-shadow: 2px 2px 10px rgba(0,0,0,0.5); }
+        body { font-family: sans-serif; background: #2c3e50; color: white; text-align: center; margin: 0; }
+        .night { background: #1a1a2e !important; }
+        section { background: rgba(0,0,0,0.3); padding: 15px; border-radius: 10px; margin: 10px auto; max-width: 500px; }
         .hidden { display: none; }
+        #chatBox { height: 150px; overflow-y: auto; background: rgba(0,0,0,0.2); margin: 10px 0; padding: 10px; text-align: left; }
+        .player-item { display: flex; justify-content: space-between; padding: 5px; border-bottom: 1px solid #444; }
+        .dead { text-decoration: line-through; color: #888; }
+        button { cursor: pointer; border-radius: 5px; border: none; padding: 8px; }
+        .btn-kick { background: #ff4d4d; color: white; font-size: 10px; }
+        .btn-start { background: #27ae60; color: white; width: 100%; font-size: 18px; }
     </style>
 </head>
 <body>
-
-    <div class="container">
-        <section id="setup">
-            <h1 style="font-size: 40px;">🐺</h1>
-            <h2>狼人殺村莊</h2>
-            <input type="text" id="roomInput" placeholder="請輸入房間號碼 (例如: 123)">
-            <input type="text" id="username" placeholder="請輸入你的暱稱">
-            <button onclick="joinRoom()" class="btn-main" style="margin-top:15px;">進入村莊</button>
-        </section>
-
-        <main id="game" class="hidden">
-            <section>
-                <div style="font-size: 14px; opacity: 0.8;">房間：<span id="displayRoom" style="color:var(--gold);"></span></div>
-                <div id="hostBadge" class="hidden" style="color:var(--gold); font-weight:bold; margin-top:5px;">👑 你是房長</div>
-                <hr style="opacity: 0.2;">
-                <div id="myRole">等待法官發牌...</div>
-                
-                <button id="startBtn" onclick="startGame()" class="btn-main hidden" style="background:#27ae60; margin-top:10px;">房長：開始發牌</button>
-                <button onclick="claimHost()" class="btn-sec">搶當房長</button>
-            </section>
-
-            <div id="hostPanel" class="host-panel">
-                <p style="margin:0 0 10px 0; font-size:12px;">房長快捷宣告</p>
-                <button class="btn-host" onclick="quickSpeak('🌙 天黑請閉眼，狼人請睜眼')">🌙 天黑</button>
-                <button class="btn-host" onclick="quickSpeak('☀️ 天亮了，昨晚...')">☀️ 天亮</button>
-                <button class="btn-host" onclick="quickSpeak('📢 現在開始自由討論')">📢 發言</button>
-                <button class="btn-host" onclick="quickSpeak('🗳️ 討論結束，請大家開始投票')">🗳️ 投票</button>
-            </div>
-
-            <section>
-                <div id="chatBox"></div>
-                <div style="display:flex; gap:5px;">
-                    <input type="text" id="chatInput" placeholder="點擊發言..." style="flex:1;">
-                    <button onclick="sendMessage()" style="background:var(--primary); color:white;">發送</button>
-                </div>
-                <div style="margin-top:10px; font-size:12px;">村莊人數：<span id="pCount">0</span></div>
-            </section>
-        </main>
+    <div id="setup" class="container">
+        <h1>🐺 狼人殺大廳</h1>
+        <input type="text" id="roomInput" placeholder="房間號碼"><br>
+        <input type="text" id="username" placeholder="你的暱稱"><br>
+        <button onclick="join()" class="btn-start" style="margin-top:10px;">進入房間</button>
     </div>
 
-    <script>
-        // 【請確認網址】與你 Render 的網址一致
-        const socket = io("https://were-wolf.onrender.com"); 
-        let myName = "";
-        let amIHost = false;
+    <main id="game" class="hidden">
+        <section>
+            <h2 id="roomTitle">房間</h2>
+            <div id="myRole" style="font-size:24px; color:#f1c40f;">等待開始...</div>
+            <button id="startBtn" class="hidden" onclick="start()">開始遊戲</button>
+        </section>
 
-        // 1. 登入房間
-        function joinRoom() {
+        <section>
+            <h3>村莊名單</h3>
+            <div id="playerList"></div>
+        </section>
+
+        <section>
+            <div id="chatBox"></div>
+            <input type="text" id="chatInput" placeholder="輸入訊息..."><button onclick="send()">送出</button>
+        </section>
+    </main>
+
+    <script>
+        const socket = io("https://were-wolf.onrender.com");
+        let myName = "", amIHost = false, currentStatus = 'waiting';
+
+        function join() {
             const roomId = document.getElementById("roomInput").value;
             myName = document.getElementById("username").value;
-            if (!roomId || !myName) return alert("房號和名字都要填喔！");
-            
-            socket.emit('joinRoom', { roomId, username: myName });
-            document.getElementById("displayRoom").innerText = roomId;
+            if(roomId && myName) socket.emit('joinRoom', { roomId, username: myName });
         }
 
-        // 2. 處理連線回饋
-        socket.on('errorMessage', (msg) => alert(msg));
-        socket.on('updatePlayers', (ps) => {
+        socket.on('updatePlayers', ({ players, status }) => {
             document.getElementById("setup").classList.add("hidden");
             document.getElementById("game").classList.remove("hidden");
-            document.getElementById("pCount").textContent = ps.length;
-        });
-        // 【新增：房長按鈕動態狀態】
-        if (amIHost) {
-            const startBtn = document.getElementById("startBtn");
-            if (ps.length < 6) {
-                startBtn.disabled = true;
-                startBtn.style.background = "#555"; // 灰色代表不能按
-                startBtn.innerText = `人數不足 (${ps.length}/6)`;
+            currentStatus = status;
+            
+            const list = document.getElementById("playerList");
+            list.innerHTML = "";
+            players.forEach(p => {
+                const div = document.createElement("div");
+                div.className = `player-item ${!p.isAlive ? 'dead' : ''}`;
+                div.innerHTML = `<span>${p.isHost ? '👑' : ''} ${p.name} ${!p.isAlive ? '(淘汰)' : ''}</span>`;
+                
+                if(amIHost && status === 'waiting' && p.id !== socket.id) {
+                    const kBtn = document.createElement("button");
+                    kBtn.innerText = "踢出";
+                    kBtn.className = "btn-kick";
+                    kBtn.onclick = () => socket.emit('kickPlayer', p.id);
+                    div.appendChild(kBtn);
+                }
+                list.appendChild(div);
+            });
+
+            if(amIHost && status === 'waiting') {
+                const sBtn = document.getElementById("startBtn");
+                sBtn.classList.remove("hidden");
+                sBtn.disabled = players.length < 6;
+                sBtn.innerText = players.length < 6 ? `人數不足(${players.length}/6)` : "開始遊戲";
             } else {
-                startBtn.disabled = false;
-                startBtn.style.background = "#27ae60"; // 綠色代表可以開始
-                startBtn.innerText = "人數已齊全，點擊開始遊戲";
+                document.getElementById("startBtn").classList.add("hidden");
             }
-        }
-
-        // 3. 聊天功能
-        function sendMessage() {
-            const input = document.getElementById("chatInput");
-            if (!input.value) return;
-            socket.emit('sendMessage', { name: myName, text: input.value, isHost: amIHost });
-            input.value = "";
-        }
-
-        function quickSpeak(txt) {
-            socket.emit('sendMessage', { name: "👑 房長公告", text: txt, isHost: true });
-        }
-
-        socket.on('receiveMessage', (data) => {
-            const div = document.createElement("div");
-            div.className = "msg";
-            if (data.isSystem) div.className += " msg-sys";
-            if (data.isHost) div.className += " msg-host";
-            div.innerHTML = `<span>${data.name}:</span> ${data.text}`;
-            const box = document.getElementById("chatBox");
-            box.appendChild(div);
-            box.scrollTop = box.scrollHeight;
         });
 
-        // 4. 房長狀態管理
-        function updateHostUI(status) {
-            amIHost = status;
-            document.getElementById("hostBadge").classList.toggle("hidden", !status);
-            document.getElementById("hostPanel").style.display = status ? "block" : "none";
-            document.getElementById("startBtn").classList.toggle("hidden", !status);
-        }
-        socket.on('hostStatus', (status) => updateHostUI(status));
-        socket.on('hostChanged', (hid) => updateHostUI(socket.id === hid));
-
-        function claimHost() { socket.emit('claimHost'); }
-        function startGame() { socket.emit('startGame'); }
-
-        // 5. 遊戲邏輯（發牌與切換晝夜）
         socket.on('assignRole', (role) => {
-            document.getElementById("myRole").innerText = "身分：" + role;
-            document.body.className = "night"; // 發牌自動變晚上
+            document.getElementById("myRole").innerText = "你的身分：" + role;
+            document.body.classList.add("night");
         });
 
-        // 支援 Enter 鍵送出訊息
-        document.getElementById("chatInput").onkeypress = (e) => { if(e.key === 'Enter') sendMessage(); };
+        socket.on('gameOver', (data) => {
+            alert(`🎉 遊戲結束！${data.winner} 勝利！\n\n公布身分：\n` + data.allRoles.map(p => `${p.name}: ${p.role}`).join('\n'));
+            location.reload(); 
+        });
+
+        socket.on('errorMessage', m => alert(m));
+        function start() { socket.emit('startGame'); }
+        function send() { 
+            const msg = document.getElementById("chatInput").value;
+            if(msg) { socket.emit('sendMessage', { name: myName, text: msg }); document.getElementById("chatInput").value = ""; }
+        }
+        socket.on('receiveMessage', d => {
+            const b = document.getElementById("chatBox");
+            b.innerHTML += `<div><b>${d.name}:</b> ${d.text}</div>`;
+            b.scrollTop = b.scrollHeight;
+        });
     </script>
 </body>
 </html>
