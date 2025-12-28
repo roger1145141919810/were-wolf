@@ -45,7 +45,61 @@ io.on('connection', (socket) => {
         }
         broadcastUpdate(socket.roomId);
     });
+// --- 機器人隨機行動邏輯 ---
+    function handleBotRandomActions(roomId, phase) {
+        const room = rooms[roomId];
+        if (!room) return;
 
+        const aliveBots = room.players.filter(p => p.isBot && p.isAlive);
+        const alivePlayers = room.players.filter(p => p.isAlive);
+
+        aliveBots.forEach(bot => {
+            // 1. 狼人機器人隨機殺人
+            if (phase === 'night_wolf' && bot.role === '狼人') {
+                const target = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
+                room.nightAction.wolfVotes[bot.id] = target.id;
+                room.nightAction.wolfConfirmations[bot.id] = true;
+            }
+
+            // 2. 女巫機器人隨機用藥 (50% 機率使用)
+            if (phase === 'night_witch' && bot.role === '女巫') {
+                if (room.witchHasSave && room.nightAction.finalKilledId && Math.random() > 0.5) {
+                    room.nightAction.savedId = room.nightAction.finalKilledId;
+                    room.witchHasSave = false;
+                } else if (room.witchHasPoison && Math.random() > 0.7) {
+                    const target = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
+                    room.nightAction.poisonedId = target.id;
+                    room.witchHasPoison = false;
+                }
+            }
+
+            // 3. 投票階段隨機投人
+            if (phase === 'voting' && !room.votes[bot.id]) {
+                const target = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
+                room.votes[bot.id] = target.id;
+            }
+        });
+
+        // 狼人回合如果只有機器人，主動同步 UI 並檢查共識
+        if (phase === 'night_wolf') {
+            syncWolfUI(room);
+            checkWolfConsensus(roomId);
+        }
+    }
+
+    // 輔助：檢查狼人是否達成共識
+    function checkWolfConsensus(roomId) {
+        const room = rooms[roomId];
+        const aliveWolves = room.players.filter(p => p.role === '狼人' && p.isAlive);
+        const confirms = aliveWolves.filter(w => room.nightAction.wolfConfirmations[w.id]);
+        const votes = aliveWolves.map(w => room.nightAction.wolfVotes[w.id]);
+        const uniqueVotes = [...new Set(votes.filter(v => v !== null))];
+
+        if (confirms.length === aliveWolves.length && uniqueVotes.length === 1) {
+            room.nightAction.finalKilledId = uniqueVotes[0];
+            triggerWitchPhase(roomId);
+        }
+    }
     // 開始遊戲
     socket.on('startGame', () => {
         const room = rooms[socket.roomId];
