@@ -6,174 +6,142 @@
     <title>🐺 狼人殺：終極連線版</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        /* 全域基礎樣式 */
-:root {
-    --bg-dark: #121212;
-    --card-bg: rgba(255, 255, 255, 0.05);
-    --primary-red: #e94560;
-    --primary-green: #27ae60;
-    --accent-gold: #f1c40f;
-    --text-main: #e0e0e0;
-}
+        /* --- 這裡是你要求的美化 CSS --- */
+        :root {
+            --bg-dark: #121212;
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --primary-red: #e94560;
+            --primary-green: #27ae60;
+            --accent-gold: #f1c40f;
+            --text-main: #e0e0e0;
+        }
 
-body {
-    font-family: 'Segoe UI', 'PingFang TC', sans-serif;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    color: var(--text-main);
-    text-align: center;
-    margin: 0;
-    transition: background 1s ease;
-    min-height: 100vh;
-}
+        body {
+            font-family: 'Segoe UI', 'PingFang TC', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: var(--text-main);
+            text-align: center;
+            margin: 0;
+            transition: background 1s ease;
+            min-height: 100vh;
+        }
 
-/* 夜晚模式切換 */
-body.night {
-    background: radial-gradient(circle at center, #0f3460 0%, #000000 100%) !important;
-}
+        body.night {
+            background: radial-gradient(circle at center, #0f3460 0%, #000000 100%) !important;
+        }
 
-/* 區塊容器 */
-section {
-    background: var(--card-bg);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 20px;
-    border-radius: 16px;
-    margin: 15px auto;
-    max-width: 450px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-}
+        section {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 16px;
+            margin: 15px auto;
+            max-width: 450px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
 
-/* 輸入框樣式 */
-input[type="text"] {
-    width: 85%;
-    padding: 12px;
-    margin: 10px 0;
-    border-radius: 8px;
-    border: 1px solid #444;
-    background: rgba(0, 0, 0, 0.3);
-    color: white;
-    font-size: 16px;
-    outline: none;
-    transition: border 0.3s;
-}
+        input[type="text"] {
+            width: 85%;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: 1px solid #444;
+            background: rgba(0, 0, 0, 0.3);
+            color: white;
+            font-size: 16px;
+            outline: none;
+        }
 
-input[type="text"]:focus {
-    border-color: var(--primary-red);
-}
+        button {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s ease;
+        }
 
-/* 按鈕美化 */
-button {
-    padding: 10px 20px;
-    border-radius: 8px;
-    border: none;
-    cursor: pointer;
-    font-weight: bold;
-    transition: all 0.2s ease;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
+        .btn-start {
+            background: linear-gradient(45deg, var(--primary-green), #2ecc71);
+            color: white;
+            width: 90%;
+            font-size: 18px;
+            margin-top: 10px;
+        }
 
-button:hover {
-    transform: translateY(-2px);
-    filter: brightness(1.1);
-}
+        .btn-kick {
+            background: var(--primary-red);
+            color: white;
+            padding: 4px 12px;
+            font-size: 11px;
+        }
 
-.btn-start {
-    background: linear-gradient(45deg, var(--primary-green), #2ecc71);
-    color: white;
-    width: 90%;
-    font-size: 18px;
-    box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
-}
+        .player-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            margin: 8px 0;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+        }
 
-.btn-kick {
-    background: var(--primary-red);
-    color: white;
-    padding: 4px 12px;
-    font-size: 11px;
-}
+        .player-item.dead {
+            opacity: 0.4;
+            filter: grayscale(1);
+        }
 
-/* 玩家列表樣式 */
-.player-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px;
-    margin: 8px 0;
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 8px;
-}
+        #chatBox {
+            height: 180px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 14px;
+            margin-bottom: 15px;
+            text-align: left;
+        }
 
-.player-item.dead {
-    opacity: 0.4;
-    background: rgba(0, 0, 0, 0.2);
-    filter: grayscale(1);
-}
-
-.player-item span {
-    font-weight: 500;
-}
-
-/* 聊天室美化 */
-#chatBox {
-    height: 180px;
-    overflow-y: auto;
-    background: rgba(0, 0, 0, 0.4);
-    border-radius: 8px;
-    padding: 12px;
-    font-size: 14px;
-    margin-bottom: 15px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-#chatBox div {
-    margin-bottom: 6px;
-    line-height: 1.4;
-}
-
-#chatBox b {
-    color: var(--accent-gold);
-}
-
-/* 捲軸美化 */
-#chatBox::-webkit-scrollbar {
-    width: 6px;
-}
-#chatBox::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 10px;
-}
+        .hidden { display: none !important; }
+        #myRole { font-size: 24px; color: var(--accent-gold); margin: 10px 0; font-weight: bold; }
     </style>
 </head>
 <body>
+
     <div id="setup">
-        <h2>🐺 狼人殺：加入村莊</h2>
-        <input type="text" id="roomInput" placeholder="輸入房間號碼 (例如: 888)">
-        <input type="text" id="username" placeholder="你的暱稱">
-        <button onclick="join()" style="background:#27ae60; color:white; width:85%; margin-top:10px;">進入房間</button>
+        <section>
+            <h2 style="color: var(--accent-gold);">🐺 狼人殺：加入村莊</h2>
+            <input type="text" id="roomInput" placeholder="輸入房間號碼 (例如: 888)">
+            <input type="text" id="username" placeholder="你的暱稱">
+            <button onclick="join()" class="btn-start">進入房間</button>
+        </section>
     </div>
 
     <main id="game" class="hidden">
         <section>
-            <div id="roomTitle">房間：<span id="displayRoom" style="color:#f1c40f;"></span></div>
-            <div id="myRole" style="font-size:24px; color:#f1c40f; margin:10px 0;">⏳ 等待發牌...</div>
-            <button id="startBtn" class="hidden" onclick="start()" style="background:#27ae60; color:white; width:100%;">開始遊戲 (至少6人)</button>
+            <div>房間：<span id="displayRoom" style="color:var(--accent-gold);"></span></div>
+            <div id="myRole">⏳ 等待房長發牌...</div>
+            <button id="startBtn" class="btn-start hidden" onclick="start()">開始遊戲 (至少6人)</button>
         </section>
 
         <section>
-            <h3>玩家列表 (<span id="pCount">0</span>)</h3>
+            <h3>村莊名單 (<span id="pCount">0</span>)</h3>
             <div id="playerList"></div>
         </section>
 
         <section>
             <div id="chatBox"></div>
-            <input type="text" id="chatInput" placeholder="輸入訊息..."><button onclick="send()" style="background:#e94560; color:white;">送出</button>
+            <div style="display:flex; gap:10px;">
+                <input type="text" id="chatInput" placeholder="輸入訊息..." style="flex:1;">
+                <button onclick="send()" style="background:var(--primary-red); color:white;">送出</button>
+            </div>
         </section>
     </main>
 
     <script>
         const socket = io("https://were-wolf.onrender.com");
-        let myName = "", amIHost = false, myRole = "";
+        let myName = "", amIHost = false, currentStatus = 'waiting';
 
         function join() {
             const r = document.getElementById("roomInput").value;
@@ -181,69 +149,85 @@ button:hover {
             if(r && myName) {
                 socket.emit('joinRoom', { roomId: r, username: myName });
                 document.getElementById("displayRoom").innerText = r;
+            } else {
+                alert("請輸入房號與暱稱！");
             }
         }
 
         socket.on('updatePlayers', ({ players, status }) => {
+            // 切換畫面
             document.getElementById("setup").classList.add("hidden");
             document.getElementById("game").classList.remove("hidden");
             document.getElementById("pCount").innerText = players.length;
 
             const list = document.getElementById("playerList");
             list.innerHTML = "";
+            
             players.forEach(p => {
                 const div = document.createElement("div");
                 div.className = `player-item ${!p.isAlive ? 'dead' : ''}`;
-                div.innerHTML = `<span>${p.isHost ? '👑' : ''} ${p.name} ${!p.isAlive ? '(淘汰)' : ''}</span>`;
+                div.innerHTML = `<span>${p.isHost ? '👑' : '👤'} ${p.name} ${!p.isAlive ? '(淘汰)' : ''}</span>`;
                 
-                // 房長在等待廳可以踢人
+                // 房長踢人功能 (僅限等待大廳)
                 if(amIHost && status === 'waiting' && p.id !== socket.id) {
-                    const btn = document.createElement("button");
-                    btn.innerText = "踢出"; btn.className = "btn-kick";
-                    btn.onclick = () => socket.emit('kickPlayer', p.id);
-                    div.appendChild(btn);
-                }
-                // 預言家功能
-                if(myRole === '預言家' && status === 'playing' && p.id !== socket.id && p.isAlive) {
-                    const btn = document.createElement("button");
-                    btn.innerText = "查驗"; btn.className = "btn-action";
-                    btn.onclick = () => socket.emit('checkRole', p.id);
-                    div.appendChild(btn);
+                    const kBtn = document.createElement("button");
+                    kBtn.innerText = "踢出";
+                    kBtn.className = "btn-kick";
+                    kBtn.onclick = () => socket.emit('kickPlayer', p.id);
+                    div.appendChild(kBtn);
                 }
                 list.appendChild(div);
             });
 
+            // 房長按鈕管理
             if(amIHost && status === 'waiting') {
-                const b = document.getElementById("startBtn");
-                b.classList.remove("hidden");
-                b.disabled = players.length < 6;
-                b.style.opacity = players.length < 6 ? "0.5" : "1";
+                const sBtn = document.getElementById("startBtn");
+                sBtn.classList.remove("hidden");
+                if (players.length < 6) {
+                    sBtn.disabled = true;
+                    sBtn.style.opacity = "0.5";
+                    sBtn.innerText = `人數不足 (${players.length}/6)`;
+                } else {
+                    sBtn.disabled = false;
+                    sBtn.style.opacity = "1";
+                    sBtn.innerText = "人數已齊全，開始發牌";
+                }
+            } else {
+                document.getElementById("startBtn").classList.add("hidden");
             }
         });
 
         socket.on('assignRole', (role) => {
-            myRole = role;
             document.getElementById("myRole").innerText = "身分：" + role;
             document.body.classList.add("night");
         });
 
-        socket.on('checkResult', r => alert(r));
-        socket.on('gameOver', d => {
-            alert(`🎉 ${d.winner} 勝利！\n\n公布身分：\n` + d.allRoles.map(p => `${p.name}: ${p.role}`).join('\n'));
+        socket.on('gameOver', (data) => {
+            alert(`🎉 ${data.winner} 勝利！\n\n公布身分：\n` + data.allRoles.map(p => `${p.name}: ${p.role}`).join('\n'));
             location.reload();
         });
 
         socket.on('hostStatus', s => amIHost = s);
         socket.on('errorMessage', m => alert(m));
+        
         function start() { socket.emit('startGame'); }
         function send() { 
             const i = document.getElementById("chatInput");
-            if(i.value) { socket.emit('sendMessage', { name: myName, text: i.value }); i.value = ""; }
+            if(i.value) { 
+                socket.emit('sendMessage', { name: myName, text: i.value }); 
+                i.value = ""; 
+            }
         }
+        
         socket.on('receiveMessage', d => {
             const b = document.getElementById("chatBox");
-            b.innerHTML += `<div><b>${d.name}:</b> ${d.text}</div>`;
+            b.innerHTML += `<div><b style="color:var(--accent-gold)">${d.name}:</b> ${d.text}</div>`;
             b.scrollTop = b.scrollHeight;
+        });
+
+        // 支援 Enter 鍵送出
+        document.getElementById("chatInput").addEventListener("keypress", (e) => {
+            if(e.key === "Enter") send();
         });
     </script>
 </body>
