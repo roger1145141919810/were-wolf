@@ -11,15 +11,12 @@ const io = new Server(server, { cors: { origin: "*", methods: ["GET", "POST"] } 
 let rooms = {};
 
 io.on('connection', (socket) => {
-    // 【加入房間】
     socket.on('joinRoom', ({ roomId, username }) => {
-        if (!rooms[roomId]) {
-            rooms[roomId] = { hostId: socket.id, players: [], status: 'waiting' };
-        }
+        if (!rooms[roomId]) rooms[roomId] = { hostId: socket.id, players: [], status: 'waiting' };
         const room = rooms[roomId];
 
-        if (room.status === 'playing') return socket.emit('errorMessage', '❌ 遊戲已在進行中，無法加入。');
-        if (room.players.some(p => p.name === username)) return socket.emit('errorMessage', '❌ 名字重複了！');
+        if (room.status === 'playing') return socket.emit('errorMessage', '❌ 遊戲已開始，請等下一局。');
+        if (room.players.some(p => p.name === username)) return socket.emit('errorMessage', '❌ 名字重複囉！');
 
         socket.join(roomId);
         socket.roomId = roomId;
@@ -32,38 +29,31 @@ io.on('connection', (socket) => {
         socket.emit('hostStatus', player.isHost);
     });
 
-    // 【房長踢人】
     socket.on('kickPlayer', (targetId) => {
         const room = rooms[socket.roomId];
-        if (room && socket.id === room.hostId && room.status === 'waiting') {
-            io.to(targetId).emit('errorMessage', '你已被房長踢出房間。');
+        if (room && socket.id === room.hostId) {
             io.sockets.sockets.get(targetId)?.disconnect();
         }
     });
 
-    // 【開始遊戲】至少6人
     socket.on('startGame', () => {
         const room = rooms[socket.roomId];
-        if (!room || room.players.length < 6) return socket.emit('errorMessage', '❌ 至少需要 6 人才能開始！');
-        
-        room.status = 'playing';
-        const roles = ['狼人', '狼人', '預言家', '女巫', '村民', '村民', '獵人']; // 隨人數擴充
-        room.players.forEach((p, i) => {
-            p.isAlive = true;
-            p.role = roles[i % roles.length];
-            io.to(p.id).emit('assignRole', p.role);
-        });
-
-        io.to(socket.roomId).emit('updatePlayers', { players: room.players, status: room.status });
-        io.to(socket.roomId).emit('receiveMessage', { name: "系統", text: "🔥 遊戲開始！離線將視同淘汰。", isSystem: true });
+        if (room && room.players.length >= 6) {
+            room.status = 'playing';
+            const roles = ['狼人', '狼人', '預言家', '女巫', '村民', '村民'];
+            room.players.forEach((p, i) => {
+                p.isAlive = true;
+                p.role = roles[i % roles.length];
+                io.to(p.id).emit('assignRole', p.role);
+            });
+            io.to(socket.roomId).emit('updatePlayers', { players: room.players, status: room.status });
+        }
     });
 
-    // 【聊天訊息】
     socket.on('sendMessage', (data) => {
         if (socket.roomId) io.to(socket.roomId).emit('receiveMessage', data);
     });
 
-    // 【斷線處理】離線即淘汰
     socket.on('disconnect', () => {
         const roomId = socket.roomId;
         if (!roomId || !rooms[roomId]) return;
@@ -79,7 +69,7 @@ io.on('connection', (socket) => {
             const player = room.players.find(p => p.id === socket.id);
             if (player) {
                 player.isAlive = false;
-                io.to(roomId).emit('receiveMessage', { name: "系統", text: `⚠️ ${player.name} 已離線，視同淘汰！`, isSystem: true });
+                io.to(roomId).emit('receiveMessage', { name: "系統", text: `⚠️ ${player.name} 已離線淘汰！`, isSystem: true });
                 checkGameOver(roomId);
             }
         }
@@ -98,7 +88,7 @@ io.on('connection', (socket) => {
 
         if (winner) {
             io.to(roomId).emit('gameOver', { winner, allRoles: room.players });
-            room.status = 'waiting';
+            delete rooms[roomId]; // 結算後重置房間
         }
     }
 });
