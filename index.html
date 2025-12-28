@@ -122,6 +122,10 @@
         <section>
             <div>房間：<span id="displayRoom" style="color:var(--accent-gold);"></span></div>
             <div id="myRole">⏳ 等待房長發牌...</div>
+            <div id="timerDisplay" style="font-size: 20px; color: #e94560; font-weight: bold; margin: 10px 0;">
+    ⏳ 剩餘時間：--:--
+</div>
+<button id="skipBtn" class="btn-action hidden" onclick="skipDay()" style="background:#3498db; color:white; padding:10px 20px;">⏭️ 跳過發言</button>
             <button id="startBtn" class="btn-start hidden" onclick="start()">開始遊戲 (至少6人)</button>
         </section>
 
