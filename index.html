@@ -233,6 +233,29 @@
         document.getElementById("chatInput").addEventListener("keypress", (e) => {
             if(e.key === "Enter") send();
         });
+        // 更新計時器顯示
+socket.on('timerUpdate', (seconds) => {
+    const min = Math.floor(seconds / 60);
+    const sec = seconds % 60;
+    document.getElementById("timerDisplay").innerText = `⏳ 剩餘時間：${min}:${sec < 10 ? '0' : ''}${sec}`;
+    
+    // 白天狀態下顯示跳過按鈕
+    if (seconds > 0) {
+        document.getElementById("skipBtn").classList.remove("hidden");
+    }
+});
+
+function skipDay() {
+    socket.emit('castSkipVote');
+    document.getElementById("skipBtn").disabled = true; // 投過後禁用
+    document.getElementById("skipBtn").innerText = "已投票";
+}
+
+// 修改原本的 start 函數，讓房長開始遊戲時同時啟動計時
+function start() {
+    socket.emit('startGame');
+    socket.emit('startDayTimer'); 
+}
     </script>
 </body>
 </html>
