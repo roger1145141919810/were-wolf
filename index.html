@@ -6,17 +6,143 @@
     <title>🐺 狼人殺：終極連線版</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #2c3e50; color: white; text-align: center; margin: 0; transition: 0.5s; }
-        .night { background: #1a1a2e !important; }
-        section { background: rgba(0,0,0,0.2); padding: 15px; border-radius: 10px; margin: 10px auto; max-width: 500px; }
-        .hidden { display: none; }
-        #chatBox { height: 200px; overflow-y: auto; background: rgba(255,255,255,0.1); padding: 10px; text-align: left; }
-        .player-item { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #444; }
-        .dead { text-decoration: line-through; color: #777; }
-        button { padding: 8px 15px; border-radius: 5px; border: none; cursor: pointer; font-weight: bold; }
-        .btn-kick { background: #e94560; color: white; font-size: 10px; }
-        .btn-action { background: #f1c40f; color: #333; font-size: 10px; margin-left: 5px; }
-        input { padding: 10px; width: 80%; border-radius: 5px; border: none; margin: 5px 0; }
+        /* 全域基礎樣式 */
+:root {
+    --bg-dark: #121212;
+    --card-bg: rgba(255, 255, 255, 0.05);
+    --primary-red: #e94560;
+    --primary-green: #27ae60;
+    --accent-gold: #f1c40f;
+    --text-main: #e0e0e0;
+}
+
+body {
+    font-family: 'Segoe UI', 'PingFang TC', sans-serif;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    color: var(--text-main);
+    text-align: center;
+    margin: 0;
+    transition: background 1s ease;
+    min-height: 100vh;
+}
+
+/* 夜晚模式切換 */
+body.night {
+    background: radial-gradient(circle at center, #0f3460 0%, #000000 100%) !important;
+}
+
+/* 區塊容器 */
+section {
+    background: var(--card-bg);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 20px;
+    border-radius: 16px;
+    margin: 15px auto;
+    max-width: 450px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* 輸入框樣式 */
+input[type="text"] {
+    width: 85%;
+    padding: 12px;
+    margin: 10px 0;
+    border-radius: 8px;
+    border: 1px solid #444;
+    background: rgba(0, 0, 0, 0.3);
+    color: white;
+    font-size: 16px;
+    outline: none;
+    transition: border 0.3s;
+}
+
+input[type="text"]:focus {
+    border-color: var(--primary-red);
+}
+
+/* 按鈕美化 */
+button {
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+button:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.1);
+}
+
+.btn-start {
+    background: linear-gradient(45deg, var(--primary-green), #2ecc71);
+    color: white;
+    width: 90%;
+    font-size: 18px;
+    box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
+}
+
+.btn-kick {
+    background: var(--primary-red);
+    color: white;
+    padding: 4px 12px;
+    font-size: 11px;
+}
+
+/* 玩家列表樣式 */
+.player-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    margin: 8px 0;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+}
+
+.player-item.dead {
+    opacity: 0.4;
+    background: rgba(0, 0, 0, 0.2);
+    filter: grayscale(1);
+}
+
+.player-item span {
+    font-weight: 500;
+}
+
+/* 聊天室美化 */
+#chatBox {
+    height: 180px;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 14px;
+    margin-bottom: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+#chatBox div {
+    margin-bottom: 6px;
+    line-height: 1.4;
+}
+
+#chatBox b {
+    color: var(--accent-gold);
+}
+
+/* 捲軸美化 */
+#chatBox::-webkit-scrollbar {
+    width: 6px;
+}
+#chatBox::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+}
     </style>
 </head>
 <body>
