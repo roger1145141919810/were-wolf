@@ -11,59 +11,88 @@ const io = new Server(server, {
     cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
-let players = [];
-let hostId = null; // 紀錄房長的 ID
+// 資料結構：rooms = { "123": { hostId: "...", players: [...] } }
+let rooms = {};
 
 io.on('connection', (socket) => {
-    // 1. 加入遊戲
-    socket.on('joinGame', (username) => {
-        // 如果還沒有房長，第一個加入的人自動變成房長
-        if (!hostId) {
-            hostId = socket.id;
+    
+    socket.on('joinRoom', ({ roomId, username }) => {
+        // 1. 檢查房間是否存在，不存在則創立
+        if (!rooms[roomId]) {
+            rooms[roomId] = {
+                hostId: socket.id,
+                players: []
+            };
         }
-        const player = { id: socket.id, name: username, role: null, isHost: (socket.id === hostId) };
-        players.push(player);
-        
-        io.emit('updatePlayers', players);
-        socket.emit('hostStatus', socket.id === hostId); // 告訴該玩家他是不是房長
-        console.log(`${username} 加入了，房長狀態: ${player.isHost}`);
+
+        const currentRoom = rooms[roomId];
+
+        // 2. 檢查同房間內是否有重複名稱
+        const isDuplicate = currentRoom.players.some(p => p.name === username);
+        if (isDuplicate) {
+            socket.emit('errorMessage', '這個名字在房間裡已經有人用囉！');
+            return;
+        }
+
+        // 3. 加入房間
+        socket.join(roomId);
+        const player = { 
+            id: socket.id, 
+            name: username, 
+            role: null, 
+            isHost: (socket.id === currentRoom.hostId) 
+        };
+        currentRoom.players.push(player);
+        socket.roomId = roomId; // 紀錄玩家在哪個房間
+
+        // 4. 通知房間內所有人更新名單
+        io.to(roomId).emit('updatePlayers', currentRoom.players);
+        socket.emit('hostStatus', socket.id === currentRoom.hostId);
+        console.log(`玩家 ${username} 進入房間 ${roomId}`);
     });
 
-    // 2. 搶當房長 (如果原本房長斷線或想換人)
-    socket.on('claimHost', () => {
-        hostId = socket.id;
-        players.forEach(p => p.isHost = (p.id === hostId));
-        io.emit('updatePlayers', players);
-        io.emit('hostChanged', hostId); // 廣播新房長產生
-    });
-
-    // 3. 聊天訊息
+    // 聊天訊息（僅發送給同房間的人）
     socket.on('sendMessage', (data) => {
-        io.emit('receiveMessage', data);
-    });
-
-    // 4. 開始遊戲
-    socket.on('startGame', () => {
-        const roles = ['狼人', '預言家', '女巫', '獵人', '村民', '村民'];
-        players.forEach((player, index) => {
-            player.role = roles[index % roles.length];
-            io.to(player.id).emit('assignRole', player.role);
-        });
-        io.emit('receiveMessage', { name: "系統", text: "🔥 遊戲開始！身分已發放，請查看下方身分欄。" });
-    });
-
-    // 5. 斷線處理
-    socket.on('disconnect', () => {
-        const wasHost = (socket.id === hostId);
-        players = players.filter(p => p.id !== socket.id);
-        if (wasHost) {
-            hostId = players.length > 0 ? players[0].id : null; // 自動移交給下一個人
-            if (hostId) players[0].isHost = true;
+        if (socket.roomId) {
+            io.to(socket.roomId).emit('receiveMessage', data);
         }
-        io.emit('updatePlayers', players);
-        if (wasHost) io.emit('hostChanged', hostId);
+    });
+
+    // 房長開始遊戲
+    socket.on('startGame', () => {
+        const roomId = socket.roomId;
+        if (!roomId || !rooms[roomId]) return;
+        
+        const currentRoom = rooms[roomId];
+        const roles = ['狼人', '預言家', '女巫', '獵人', '村民', '村民'];
+        
+        currentRoom.players.forEach((p, i) => {
+            p.role = roles[i % roles.length];
+            io.to(p.id).emit('assignRole', p.role);
+        });
+        io.to(roomId).emit('receiveMessage', { name: "系統", text: "🔥 遊戲開始！身分已發送。", isSystem: true });
+    });
+
+    // 斷線處理
+    socket.on('disconnect', () => {
+        const roomId = socket.roomId;
+        if (roomId && rooms[roomId]) {
+            const currentRoom = rooms[roomId];
+            const wasHost = (socket.id === currentRoom.hostId);
+            
+            currentRoom.players = currentRoom.players.filter(p => p.id !== socket.id);
+            
+            if (currentRoom.players.length === 0) {
+                delete rooms[roomId]; // 沒人就刪除房間
+            } else if (wasHost) {
+                currentRoom.hostId = currentRoom.players[0].id;
+                currentRoom.players[0].isHost = true;
+                io.to(roomId).emit('hostChanged', currentRoom.hostId);
+            }
+            io.to(roomId).emit('updatePlayers', currentRoom.players || []);
+        }
     });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`伺服器跑在 ${PORT}`));
+server.listen(PORT, () => console.log(`房間系統伺服器已啟動: ${PORT}`));
