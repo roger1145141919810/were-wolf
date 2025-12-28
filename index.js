@@ -72,13 +72,25 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 【開始遊戲發牌】
+    // 【修改後的開始遊戲邏輯】
     socket.on('startGame', () => {
         const roomId = socket.roomId;
         if (!rooms[roomId]) return;
 
-        const roles = ['狼人', '預言家', '女巫', '獵人', '村民', '村民', '村民'];
-        rooms[roomId].players.forEach((p, i) => {
+        const currentRoom = rooms[roomId];
+
+        // 新增條件：檢查人數是否達到 6 人
+        if (currentRoom.players.length < 6) {
+            // 只對發送請求的房長回傳錯誤訊息
+            socket.emit('errorMessage', `❌ 人數不足！目前只有 ${currentRoom.players.length} 人，至少需要 6 人才能開始遊戲。`);
+            return;
+        }
+
+        // 定義至少 6 人的角色池（可以根據需求增加更多角色）
+        const roles = ['狼人', '狼人', '預言家', '女巫', '獵人', '村民', '村民', '白癡'];
+        
+        // 洗牌並發放身分
+        currentRoom.players.forEach((p, i) => {
             p.role = roles[i % roles.length];
             io.to(p.id).emit('assignRole', p.role);
         });
