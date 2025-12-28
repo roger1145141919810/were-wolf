@@ -1,194 +1,117 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>狼人殺遊戲</title>
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐺 聯線版狼人殺</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body { font-family: "Microsoft JhengHei", sans-serif; background: #1a1a2e; color: white; text-align: center; margin: 0; padding: 20px; }
+        header { background: #16213e; padding: 10px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        section { background: #0f3460; padding: 20px; border-radius: 10px; margin: 10px auto; max-width: 500px; }
+        input, button { padding: 12px 20px; margin: 10px; border-radius: 5px; border: none; font-size: 16px; }
+        input { width: 60%; }
+        button { background: #e94560; color: white; cursor: pointer; font-weight: bold; }
+        button:disabled { background: #555; }
+        ul { list-style: none; padding: 0; }
+        li { background: #16213e; padding: 10px; margin: 5px 0; border-radius: 5px; display: flex; justify-content: space-between; }
+        .role-box { font-size: 24px; color: #f1c40f; font-weight: bold; margin: 15px 0; }
+        #logContent { height: 150px; overflow-y: auto; background: #1a1a2e; padding: 10px; border-radius: 5px; text-align: left; font-size: 14px; }
+    </style>
 </head>
 <body>
 
-  <!-- 遊戲標題 -->
-  <header>
-    <h1>🐺 狼人殺</h1>
-    
-  </header>
+    <header>
+        <h1>🐺 狼人殺聯線版</h1>
+    </header>
 
-  <!-- 遊戲設定畫面 -->
-  <section id="setup">
-    <h2>遊戲設定</h2>
-    <label>玩家人數：
-      <input type="number" id="playerCount" min="4" max="12" value="8">
-    </label>
-    <button id="startGame">開始遊戲</button>
-  </section>
-
-  <!-- 遊戲主畫面 -->
-  <main id="game" hidden>
-
-    <!-- 回合資訊 -->
-    <section id="status">
-      <h2>目前狀態</h2>
-      <p>回合：<span id="round">夜晚</span></p>
-      <p>存活玩家：<span id="aliveCount"></span></p>
+    <section id="setup">
+        <h2>歡迎加入房間</h2>
+        <input type="text" id="username" placeholder="請輸入你的暱稱">
+        <button id="joinBtn">加入遊戲</button>
     </section>
 
-    <!-- 玩家區 -->
-    <section id="players">
-      <h2>玩家</h2>
-      <ul id="playerList">
-        <!-- JS 動態產生玩家 -->
-      </ul>
-    </section>
+    <main id="game" hidden>
+        <section id="status">
+            <div id="myRole" class="role-box">等待法官發牌...</div>
+            <p>目前狀態：<span id="round">白天</span></p>
+            <button id="startBtn">房長開始遊戲</button>
+        </section>
 
-    <!-- 行動區 -->
-    <section id="actions">
-      <h2>行動</h2>
-      <button id="killBtn">狼人行動</button>
-      <button id="voteBtn">白天投票</button>
-    </section>
+        <section id="players">
+            <h3>玩家列表 (<span id="aliveCount">0</span>)</h3>
+            <ul id="playerList"></ul>
+        </section>
 
-    <!-- 訊息紀錄 -->
-    <section id="log">
-      <h2>遊戲紀錄</h2>
-      <div id="logContent"></div>
-    </section>
+        <section id="actions">
+            <button id="killBtn" disabled>狼人行動</button>
+            <button id="voteBtn" disabled>白天投票</button>
+        </section>
 
-  </main>
+        <section id="log">
+            <h3>遊戲紀錄</h3>
+            <div id="logContent"></div>
+        </section>
+    </main>
 
-  <!-- 頁尾 -->
-  <footer>
-    <p>© 2025 狼人殺遊戲</p>
-  </footer>
+    <script>
+        // 【重要】請把下方的網址換成你在 Render 得到的網址
+        const RENDER_URL = "https://your-server-name.onrender.com"; 
+        const socket = io(RENDER_URL);
 
-  <!-- JavaScript -->
-  <script src="script.js"></script>
+        const joinBtn = document.getElementById("joinBtn");
+        const startBtn = document.getElementById("startBtn");
+        const setup = document.getElementById("setup");
+        const game = document.getElementById("game");
+        const playerList = document.getElementById("playerList");
+        const myRoleDisplay = document.getElementById("myRole");
+        const logContent = document.getElementById("logContent");
+
+        // 點擊加入房間
+        joinBtn.onclick = () => {
+            const name = document.getElementById("username").value;
+            if (!name) return alert("請輸入名字！");
+            socket.emit('joinGame', name);
+            setup.hidden = true;
+            game.hidden = false;
+            log("正在連線至法官...");
+        };
+
+        // 點擊開始遊戲
+        startBtn.onclick = () => {
+            socket.emit('startGame');
+        };
+
+        // 接收玩家清單更新
+        socket.on('updatePlayers', (players) => {
+            playerList.innerHTML = "";
+            players.forEach(p => {
+                const li = document.createElement("li");
+                li.innerHTML = `<span>👤 ${p.name}</span> <span>${p.role ? '已就緒' : '等待中'}</span>`;
+                playerList.appendChild(li);
+            });
+            document.getElementById("aliveCount").textContent = players.length;
+        });
+
+        // 接收身分發放
+        socket.on('assignRole', (role) => {
+            myRoleDisplay.innerText = "你的身分是：" + role;
+            log("法官已發牌，遊戲開始！");
+            startBtn.style.display = "none"; // 遊戲開始後隱藏開始按鈕
+        });
+
+        // 紀錄訊息工具
+        function log(msg) {
+            const p = document.createElement("p");
+            p.textContent = `> ${msg}`;
+            logContent.appendChild(p);
+            logContent.scrollTop = logContent.scrollHeight;
+        }
+
+        // 處理連線失敗
+        socket.on('connect_error', () => {
+            log("錯誤：無法連線到 Render 伺服器，請確認網址正確且伺服器已啟動。");
+        });
+    </script>
 </body>
 </html>
-
-<script>// ===== 狼人殺 基礎遊戲邏輯 =====
-
-const startBtn = document.getElementById("startGame");
-const setup = document.getElementById("setup");
-const game = document.getElementById("game");
-const playerList = document.getElementById("playerList");
-const aliveCountSpan = document.getElementById("aliveCount");
-const roundSpan = document.getElementById("round");
-const logContent = document.getElementById("logContent");
-const killBtn = document.getElementById("killBtn");
-const voteBtn = document.getElementById("voteBtn");
-
-let players = [];
-let phase = "night"; // night | day
-
-// ===== 玩家物件 =====
-function createPlayers(count) {
-  const roles = [];
-  roles.push("狼人", "狼人");
-  roles.push("預言家");
-  while (roles.length < count) {
-    roles.push("平民");
-  }
-
-  shuffle(roles);
-
-  players = roles.map((role, index) => ({
-    id: index + 1,
-    name: `玩家 ${index + 1}`,
-    role,
-    alive: true
-  }));
-}
-
-// ===== 洗牌 =====
-function shuffle(array) {
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
-  }
-}
-
-// ===== 顯示玩家 =====
-function renderPlayers() {
-  playerList.innerHTML = "";
-  players.forEach(p => {
-    const li = document.createElement("li");
-    li.textContent = `${p.name} - ${p.alive ? "存活" : "死亡"}`;
-    if (!p.alive) li.style.textDecoration = "line-through";
-    playerList.appendChild(li);
-  });
-  aliveCountSpan.textContent = players.filter(p => p.alive).length;
-}
-
-// ===== 紀錄訊息 =====
-function log(msg) {
-  const p = document.createElement("p");
-  p.textContent = msg;
-  logContent.appendChild(p);
-}
-
-// ===== 開始遊戲 =====
-startBtn.onclick = () => {
-  const count = Number(document.getElementById("playerCount").value);
-  createPlayers(count);
-  setup.hidden = true;
-  game.hidden = false;
-  phase = "night";
-  roundSpan.textContent = "夜晚";
-  logContent.innerHTML = "";
-  log("遊戲開始，夜晚降臨...");
-  renderPlayers();
-};
-
-// ===== 狼人夜晚行動 =====
-killBtn.onclick = () => {
-  if (phase !== "night") return alert("現在不是夜晚！");
-
-  const targets = players.filter(p => p.alive && p.role !== "狼人");
-  if (targets.length === 0) return;
-
-  const victim = targets[Math.floor(Math.random() * targets.length)];
-  victim.alive = false;
-  log(`🌙 夜晚：${victim.name} 被狼人殺害`);
-
-  phase = "day";
-  roundSpan.textContent = "白天";
-  renderPlayers();
-  checkWin();
-};
-
-// ===== 白天投票 =====
-voteBtn.onclick = () => {
-  if (phase !== "day") return alert("現在不是白天！");
-
-  const targets = players.filter(p => p.alive);
-  const voted = targets[Math.floor(Math.random() * targets.length)];
-  voted.alive = false;
-  log(`☀️ 白天：${voted.name} 被投票處刑`);
-
-  phase = "night";
-  roundSpan.textContent = "夜晚";
-  renderPlayers();
-  checkWin();
-};
-
-// ===== 勝負判斷 =====
-function checkWin() {
-  const alive = players.filter(p => p.alive);
-  const wolves = alive.filter(p => p.role === "狼人");
-  const humans = alive.filter(p => p.role !== "狼人");
-
-  if (wolves.length === 0) {
-    log("🎉 好人陣營勝利！");
-    disableActions();
-  } else if (wolves.length >= humans.length) {
-    log("💀 狼人陣營勝利！");
-    disableActions();
-  }
-}
-
-function disableActions() {
-  killBtn.disabled = true;
-  voteBtn.disabled = true;
-}
-</script>
