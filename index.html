@@ -30,7 +30,7 @@
 <body>
     <div id="setup">
         <section>
-            <h2 style="color: var(--accent-gold);">🐺 狼人殺：連線測試版</h2>
+            <h2 style="color: var(--accent-gold);">🐺 狼人殺：連線版</h2>
             <input type="text" id="roomInput" placeholder="房間號碼">
             <input type="text" id="username" placeholder="暱稱">
             <button onclick="join()" style="width:90%; background:var(--primary-green); color:white; padding:15px; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">進入遊戲</button>
@@ -46,9 +46,6 @@
             
             <div id="hostControls" class="hidden">
                 <button id="startBtn" onclick="socket.emit('startGame')" style="background:var(--primary-green); color:white; padding:12px 25px; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">正式開始</button>
-                <div style="margin-top:10px;">
-                    <button onclick="socket.emit('addTestBots')" style="background:#555; color:white; padding:8px 15px; border:none; border-radius:5px; cursor:pointer; font-size:12px;">🤖 補滿機器人測試</button>
-                </div>
             </div>
 
             <button id="skipBtn" class="hidden" onclick="socket.emit('castSkipVote')" style="background:var(--me-blue); color:white; padding:15px; border:none; border-radius:8px; font-weight:bold; cursor:pointer; width: 100%; margin-top: 10px;">⏭️ 我發言完了 (跳過)</button>
@@ -168,10 +165,9 @@
         dots += '</div>';
 
         let btns = `<div>`;
-        if (amIHost && status === 'waiting' && !isMe && !p.isBot) {
-            btns += `<button class="action-btn" style="background:#666; font-size:10px;" onclick="socket.emit('kickPlayer','${p.id}')">踢出</button>`;
-        }
-        
+        if (amIHost && status === 'waiting' && !isMe) {
+    btns += `<button class="action-btn" style="background:#666; font-size:10px;" onclick="socket.emit('kickPlayer','${p.id}')">踢出</button>`;
+}
         if (isAlive && p.isAlive && status !== 'waiting' && status !== '等待開局') {
             if (isWolfPhase && myRole === '狼人') 
                 btns += `<button class="action-btn" style="background:var(--primary-red)" onclick="socket.emit('wolfKill','${p.id}')">選</button>`;
@@ -190,7 +186,7 @@
         btns += `</div>`;
 
         const roleClass = (myRole === '狼人' && p.role === '狼人') ? 'is-wolf' : '';
-        const nameTag = `${p.isHost ? '👑 ' : ''}${p.isBot ? '🤖 ' : ''}${p.name}${isMe ? ' (我)' : ''}`;
+        const nameTag = `${p.isHost ? '👑 ' : ''}${p.name}${isMe ? ' (我)' : ''}`;
         
         // 3. 渲染投票標籤
         const voteTag = (isVotingPhase && isMyTarget) ? ' <span style="color:var(--accent-gold); font-size:12px;">🗳️ (已選)</span>' : '';
