@@ -46,7 +46,21 @@ io.on('connection', (socket) => {
         }
         broadcastUpdate(socket.roomId);
     });
+    socket.on('kickPlayer', (targetId) => {
+        const room = rooms[socket.roomId];
+        const me = room?.players.find(p => p.id === socket.id);
+        
+        // 只有房主、在等待階段、且不是踢自己或機器人時生效
+        if (room?.status === 'waiting' && me?.isHost && socket.id !== targetId) {
+            io.to(targetId).emit('kicked'); // 通知該玩家被踢
+            room.players = room.players.filter(p => p.id !== targetId);
+            
+            const targetSocket = io.sockets.sockets.get(targetId);
+            if (targetSocket) targetSocket.leave(socket.roomId);
 
+            broadcastUpdate(socket.roomId);
+        }
+    });
     socket.on('sendWolfMessage', (d) => {
         const room = rooms[socket.roomId];
         if (!room) return;
@@ -60,10 +74,22 @@ io.on('connection', (socket) => {
     socket.on('checkRole', (targetId) => {
         const room = rooms[socket.roomId];
         const me = room?.players.find(p => p.id === socket.id);
+        
         if (room?.status === 'night_seer' && me?.role === '預言家' && me?.isAlive) {
+            // 檢查今晚是否已經驗過人
+            if (room.nightAction.seerChecked) {
+                return socket.emit('errorMessage', '❌ 你今晚已經驗過人了');
+            }
+
             const target = room.players.find(p => p.id === targetId);
-            const result = target ? (target.role === '狼人' ? '🐺 壞人' : '🕯️ 好人') : '無效目標';
-            socket.emit('checkResult', `查驗結果：${target.name} 是 ${result}`);
+            if (target) {
+                const result = target.role === '狼人' ? '🐺 壞人' : '🕯️ 好人';
+                socket.emit('checkResult', `查驗結果：${target.name} 是 ${result}`);
+                
+                // 標記已驗人
+                room.nightAction.seerChecked = true;
+                broadcastUpdate(socket.roomId); 
+            }
         }
     });
 
