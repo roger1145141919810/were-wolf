@@ -109,7 +109,7 @@ io.on('connection', (socket) => {
             room.status = 'day';
             room.skipVotes = new Set();
             broadcastUpdate(roomId);
-            startTimer(roomId, 60, () => startVoting(roomId)); // 修正：白天討論時間從 600 縮短，增加流暢度
+            startTimer(roomId, 60, () => startVoting(roomId));
             setTimeout(() => handleBotActions(roomId, 'day'), 5000);
         }
     }
@@ -128,7 +128,7 @@ io.on('connection', (socket) => {
         if (room?.status === 'night_wolf') {
             room.nightAction.wolfConfirmations[socket.id] = true;
             
-            // --- BUG 修正點 1: 只讓同隊機器人「在此時」跟票，並確保目標一致 ---
+            // --- 修正：當玩家狼人點確認，強制機器人狼人立即同步目標並點確認 ---
             const myTarget = room.nightAction.wolfVotes[socket.id];
             if (myTarget) {
                 room.players.filter(p => p.role === '狼人' && p.isAlive && p.isBot).forEach(bot => {
@@ -136,6 +136,7 @@ io.on('connection', (socket) => {
                     room.nightAction.wolfConfirmations[bot.id] = true;
                 });
             }
+            syncWolfUI(room);
             checkWolfConsensus(socket.roomId);
         }
     });
@@ -144,7 +145,6 @@ io.on('connection', (socket) => {
         const room = rooms[roomId];
         if (!room) return;
         room.status = 'night_wolf';
-        // 重置夜晚行動數據
         room.nightAction = { wolfVotes: {}, wolfConfirmations: {}, finalKilledId: null, savedId: null, poisonedId: null };
         broadcastUpdate(roomId);
         setTimeout(() => handleBotActions(roomId, 'night_wolf'), 5000);
@@ -162,7 +162,6 @@ io.on('connection', (socket) => {
         }
         broadcastUpdate(roomId);
         setTimeout(() => handleBotActions(roomId, 'night_witch'), 3000);
-        // --- BUG 修正點 2: 每個階段轉移必須重新設定 startTimer，這會自動 clearInterval ---
         startTimer(roomId, 20, () => {
             room.status = 'night_seer';
             broadcastUpdate(roomId);
@@ -255,8 +254,6 @@ io.on('connection', (socket) => {
 
         if (winner) {
             io.to(roomId).emit('gameOver', { winner });
-            
-            // --- BUG 修正點 3: 徹底清空數據，防止下一局靈異事件 ---
             room.status = 'waiting';
             room.players.forEach(p => {
                 p.isAlive = true; 
@@ -265,12 +262,10 @@ io.on('connection', (socket) => {
             room.votes = {};
             room.skipVotes = new Set();
             room.nightAction = { wolfVotes: {}, wolfConfirmations: {}, finalKilledId: null, savedId: null, poisonedId: null };
-            
             if (roomTimers[roomId]) {
                 clearInterval(roomTimers[roomId]);
                 delete roomTimers[roomId];
             }
-            
             broadcastUpdate(roomId);
             return true;
         }
@@ -279,7 +274,7 @@ io.on('connection', (socket) => {
 
     function handleBotActions(roomId, phase) {
         const room = rooms[roomId];
-        if (!room || room.status !== phase) return; // 檢查當前階段是否一致，防止逾期執行
+        if (!room || room.status !== phase) return;
         const aliveBots = room.players.filter(p => p.isBot && p.isAlive);
         const alivePlayers = room.players.filter(p => p.isAlive);
         
@@ -312,17 +307,27 @@ io.on('connection', (socket) => {
         }
     }
 
+    // --- 修正：更穩健的共識判斷 ---
     function checkWolfConsensus(roomId) {
         const room = rooms[roomId];
+        if (!room || room.status !== 'night_wolf') return;
+
         const aliveWolves = room.players.filter(p => p.role === '狼人' && p.isAlive);
         const confirms = aliveWolves.filter(w => room.nightAction.wolfConfirmations[w.id]);
         
-        // 必須「所有活著的狼人」都點擊確認，且目標一致
-        if (confirms.length === aliveWolves.length) {
+        // 如果所有活著的狼人都點擊了確認
+        if (confirms.length === aliveWolves.length && aliveWolves.length > 0) {
             const votes = aliveWolves.map(w => room.nightAction.wolfVotes[w.id]);
             const uniqueVotes = [...new Set(votes)];
+            
+            // 且所有人殺的是同一個人
             if (uniqueVotes.length === 1 && uniqueVotes[0] !== null) {
                 room.nightAction.finalKilledId = uniqueVotes[0]; 
+                // 停止計時器並直接跳女巫階段
+                if (roomTimers[roomId]) {
+                    clearInterval(roomTimers[roomId]);
+                    delete roomTimers[roomId];
+                }
                 triggerWitchPhase(roomId);
             }
         }
