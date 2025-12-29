@@ -117,7 +117,7 @@ io.on('connection', (socket) => {
             room.status = 'day';
             room.skipVotes = new Set();
             broadcastUpdate(roomId);
-            startTimer(roomId, 60, () => startVoting(roomId));
+            startTimer(roomId, 600, () => startVoting(roomId));
             setTimeout(() => handleBotActions(roomId, 'day'), 5000);
         }
     }
