@@ -214,9 +214,20 @@ io.on('connection', (socket) => {
         if (room?.status === 'day') {
             room.skipVotes.add(socket.id);
             const aliveCount = room.players.filter(p => p.isAlive).length;
+            // 門檻設定：超過半數或全體減一（可依喜好調整，此處維持原邏輯但增加廣播）
             const required = Math.max(1, aliveCount - 1);
-            io.to(socket.roomId).emit('receiveMessage', { name: "系統", text: `⏩ 跳過進度: ${room.skipVotes.size}/${required}` });
-            if (room.skipVotes.size >= required) startVoting(socket.roomId);
+            
+            io.to(socket.roomId).emit('receiveMessage', { 
+                name: "系統", 
+                text: `⏩ ${socket.username} 已準備好投票。目前進度: ${room.skipVotes.size}/${required}` 
+            });
+
+            // 核心修正：點擊後立即更新所有人的 UI，讓跳過按鈕能正確隱藏或顯示狀態
+            broadcastUpdate(socket.roomId);
+
+            if (room.skipVotes.size >= required) {
+                startVoting(socket.roomId);
+            }
         }
     });
 
