@@ -161,6 +161,9 @@
                 dots += '</div>';
 
                 let btns = `<div>`;
+                if (amIHost && status === 'waiting' && !isMe && !p.isBot) {
+    btns += `<button class="action-btn" style="background:#666; font-size:10px;" onclick="socket.emit('kickPlayer','${p.id}')">踢出</button>`;
+}
                 if (isAlive && p.isAlive && status !== 'waiting' && status !== '等待開局') {
                     // 狼人按鈕
                     if (isWolfPhase && myRole === '狼人') 
@@ -221,7 +224,10 @@
                 timerEl.innerText = s;
             }
         });
-
+        socket.on('kicked', () => {
+    alert("你已被房主移出房間");
+    location.reload(); // 重新整理網頁回到登入畫面
+});
         socket.on('receiveMessage', d => { 
             const b = document.getElementById("chatBox"); 
             b.innerHTML += `<div><span style="color:var(--accent-gold)">${d.name}:</span> ${d.text}</div>`; 
