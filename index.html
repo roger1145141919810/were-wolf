@@ -106,13 +106,14 @@
             // 房主控制按鈕僅在等待階段顯示
             document.getElementById("hostControls").classList.toggle("hidden", !amIHost || status !== 'waiting');
             
+            // --- 修正點：遊戲重新開始時，清空身分與通知 ---
             if (status === 'waiting') {
-                // 重置所有遊戲中的視覺提示
                 document.getElementById("myRole").innerText = "⏳ 等待發牌...";
                 document.getElementById("myRole").style.color = "white";
                 document.getElementById("nightNotice").innerText = "";
                 document.getElementById("timerDisplay").innerText = "--:--";
-                myRole = null; // 清除本地身分緩存
+                myRole = null; 
+                wolfStatusData = [];
             }
 
             if (!isNight && status !== 'waiting') document.getElementById("nightNotice").innerText = "";
@@ -127,7 +128,7 @@
 
         socket.on('updateWolfUI', (data) => {
             wolfStatusData = data;
-            renderList(lastPlayers, document.getElementById("gamePhase").innerText);
+            renderList(lastPlayers, lastPlayers.length > 0 ? document.getElementById("gamePhase").innerText : '');
         });
 
         function renderList(players, status) {
@@ -142,7 +143,7 @@
                 
                 // 狼人小紅點
                 let dots = '<div class="vote-indicator">';
-                if (myRole === '狼人' && status.startsWith('night')) {
+                if (myRole === '狼人' && status.includes('狼人')) {
                     wolfStatusData.filter(v => v.targetId === p.id).forEach(v => {
                         dots += `<div class="wolf-dot" style="${v.isConfirmed ? 'box-shadow: 0 0 8px #f1c40f; border-color:#f1c40f;' : ''}"></div>`;
                     });
@@ -151,19 +152,19 @@
 
                 // 行動按鈕邏輯
                 let btns = `<div>`;
-                if (isAlive && p.isAlive && status !== 'waiting') {
-                    if (status === 'night_wolf' && myRole === '狼人') 
+                if (isAlive && p.isAlive && status !== '等待開局' && status !== 'waiting') {
+                    if (status.includes('狼人') && myRole === '狼人') 
                         btns += `<button class="action-btn" style="background:var(--primary-red)" onclick="socket.emit('wolfKill','${p.id}')">選</button>`;
                     
-                    if (status === 'night_witch' && myRole === '女巫') {
+                    if (status.includes('女巫') && myRole === '女巫') {
                         if(witchPotions.hasSave) btns += `<button class="action-btn" style="background:var(--primary-green)" onclick="socket.emit('witchAction',{type:'save',targetId:'${p.id}'})">救</button>`;
                         if(witchPotions.hasPoison) btns += `<button class="action-btn" style="background:#8e44ad" onclick="socket.emit('witchAction',{type:'poison',targetId:'${p.id}'})">毒</button>`;
                     }
                     
-                    if (status === 'night_seer' && myRole === '預言家' && !isMe) 
+                    if (status.includes('預言家') && myRole === '預言家' && !isMe) 
                         btns += `<button class="action-btn" style="background:var(--me-blue)" onclick="socket.emit('checkRole','${p.id}')">驗</button>`;
                     
-                    if (status === 'voting' && !isMe) 
+                    if (status.includes('投票') && !isMe) 
                         btns += `<button class="action-btn" style="background:var(--accent-gold)" onclick="socket.emit('castVote','${p.id}')">投</button>`;
                 }
                 btns += `</div>`;
@@ -175,7 +176,8 @@
                 list.appendChild(div);
             });
 
-            if (status === 'night_wolf' && myRole === '狼人' && isAlive) {
+            // 狼人確認按鈕
+            if (status.includes('狼人') && myRole === '狼人' && isAlive) {
                 const myV = wolfStatusData.find(v => v.id === socket.id);
                 const b = document.createElement("button");
                 b.innerText = myV?.isConfirmed ? "✅ 已確認殺害" : "🔒 確定此目標";
@@ -185,8 +187,8 @@
                 list.appendChild(b);
             }
 
-            document.getElementById("skipBtn").classList.toggle("hidden", status !== 'day' || !isAlive);
-            document.getElementById("wolfSection").classList.toggle("hidden", myRole !== '狼人' || status === 'waiting');
+            document.getElementById("skipBtn").classList.toggle("hidden", !status.includes('發言') || !isAlive);
+            document.getElementById("wolfSection").classList.toggle("hidden", myRole !== '狼人' || status === '等待開局');
         }
 
         socket.on('assignRole', r => { 
@@ -230,7 +232,6 @@
             setTimeout(() => {
                 alert("遊戲結束！\n贏家是：" + d.winner + "\n\n房號仍有效，原班人馬可繼續進行下一局。"); 
             }, 500);
-            // 移除 location.reload();
             myRole = null;
             wolfStatusData = [];
         });
