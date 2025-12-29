@@ -70,20 +70,28 @@ io.on('connection', (socket) => {
     socket.on('witchAction', ({ type, targetId }) => {
         const room = rooms[socket.roomId];
         const me = room?.players.find(p => p.id === socket.id);
+        
         if (room?.status === 'night_witch' && me?.role === '女巫' && me?.isAlive) {
             if (type === 'save') {
-                if (room.witchHasSave && targetId === room.nightAction.finalKilledId) {
-                    room.nightAction.savedId = targetId;
-                    room.witchHasSave = false;
-                    socket.emit('errorMessage', '✅ 已使用解藥');
+                if (room.witchHasSave) {
+                    if (targetId === room.nightAction.finalKilledId) {
+                        room.nightAction.savedId = targetId;
+                        room.witchHasSave = false;
+                        socket.emit('errorMessage', '✅ 你已成功救回此人');
+                    } else {
+                        socket.emit('errorMessage', '❌ 此人今晚並未倒下，無法使用解藥');
+                    }
                 } else {
-                    socket.emit('errorMessage', '❌ 無法救此人');
+                    socket.emit('errorMessage', '❌ 你已經沒有解藥了');
                 }
             } else if (type === 'poison') {
                 if (room.witchHasPoison) {
+                    if (room.nightAction.savedId) {
+                        return socket.emit('errorMessage', '❌ 同一個晚上不能同時使用兩瓶藥');
+                    }
                     room.nightAction.poisonedId = targetId;
                     room.witchHasPoison = false;
-                    socket.emit('errorMessage', '✅ 已使用毒藥');
+                    socket.emit('errorMessage', '✅ 已投毒');
                 } else {
                     socket.emit('errorMessage', '❌ 毒藥已用完');
                 }
@@ -154,14 +162,21 @@ io.on('connection', (socket) => {
     function triggerWitchPhase(roomId) {
         const room = rooms[roomId];
         if (!room) return;
+        
         room.status = 'night_witch';
+        
         const witch = room.players.find(p => p.role === '女巫' && p.isAlive);
         if (witch && !witch.isBot) {
-            const killedName = room.players.find(p => p.id === room.nightAction.finalKilledId)?.name || "無人死亡";
+            const killedPlayer = room.players.find(p => p.id === room.nightAction.finalKilledId);
+            const killedName = killedPlayer ? killedPlayer.name : "無人死亡";
             io.to(witch.id).emit('witchTarget', { name: killedName });
         }
+        
+        // 關鍵：進入階段立即廣播，更新前端按鈕顯示狀態
         broadcastUpdate(roomId);
+        
         setTimeout(() => handleBotActions(roomId, 'night_witch'), 3000);
+        
         startTimer(roomId, 20, () => {
             room.status = 'night_seer';
             broadcastUpdate(roomId);
