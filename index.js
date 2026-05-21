@@ -441,15 +441,22 @@ io.on('connection', (socket) => {
         const room = rooms[socket.roomId];
         if (room) {
             room.players = room.players.filter(p => p.id !== socket.id);
-            if (room.players.length === 0) { 
-                if (roomTimers[socket.roomId]) clearInterval(roomTimers[socket.roomId]); 
-                delete rooms[socket.roomId]; 
-            } else { 
-                if (socket.id === room.hostId) { 
-                    room.hostId = room.players[0].id; 
-                    room.players[0].isHost = true; 
-                } 
-                broadcastUpdate(socket.roomId); 
+
+            // 移除真人後，若剩下全是機器人（或完全沒人），直接清空房間
+            const realPlayers = room.players.filter(p => !p.isBot);
+            if (realPlayers.length === 0) {
+                if (roomTimers[socket.roomId]) clearInterval(roomTimers[socket.roomId]);
+                delete rooms[socket.roomId];
+            } else {
+                // 等待階段時清掉所有機器人，讓下一局可以重新加
+                if (room.status === 'waiting') {
+                    room.players = realPlayers;
+                }
+                if (socket.id === room.hostId) {
+                    room.hostId = realPlayers[0].id;
+                    realPlayers[0].isHost = true;
+                }
+                broadcastUpdate(socket.roomId);
             }
         }
     });
