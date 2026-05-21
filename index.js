@@ -294,34 +294,53 @@ io.on('connection', (socket) => {
         startTimer(roomId, 30, () => settleVote(roomId));
     }
 
-    function settleVote(roomId) {
-        const room = rooms[roomId];
-        if (!room || room.status !== 'voting') return;
-        const tally = {};
-        Object.values(room.votes).forEach(id => { if (id) tally[id] = (tally[id] || 0) + 1; });
-        let maxVotes = 0, expelledId = null;
-        for (const [id, count] of Object.entries(tally)) { if (count > maxVotes) { maxVotes = count; expelledId = id; } }
-        if (expelledId) {
-            const p = room.players.find(p => p.id === expelledId);
-            if (p) { p.isAlive = false; io.to(roomId).emit('receiveMessage', { name: "系統", text: `🗳️ 投票結果：${p.name} 被放逐了。` }); }
+   function settleVote(roomId) {
+    const room = rooms[roomId];
+    if (!room || room.status !== 'voting') return;
+
+    const tally = {};
+
+    // 統計票數
+    Object.values(room.votes).forEach(id => {
+        if (id) tally[id] = (tally[id] || 0) + 1;
+    });
+
+    const aliveCount = room.players.filter(p => p.isAlive).length;
+    const half = Math.floor(aliveCount / 2) + 1; // 半數以上
+
+    let maxVotes = 0;
+    let expelledId = null;
+
+    for (const [id, count] of Object.entries(tally)) {
+        if (count > maxVotes) {
+            maxVotes = count;
+            expelledId = id;
         }
-        if (!checkGameOver(roomId)) triggerNight(roomId);
     }
 
-    function startTimer(roomId, time, cb) {
-        if (roomTimers[roomId]) clearInterval(roomTimers[roomId]);
-        let t = time;
-        roomTimers[roomId] = setInterval(() => {
-            io.to(roomId).emit('timerUpdate', t);
-            if (t <= 0) { 
-                clearInterval(roomTimers[roomId]); 
-                delete roomTimers[roomId];
-                cb(); 
-            }
-            t--;
-        }, 1000);
+    // ===== 新增：必須超過半數 =====
+    if (expelledId && maxVotes >= half) {
+        const p = room.players.find(p => p.id === expelledId);
+
+        if (p) {
+            p.isAlive = false;
+
+            io.to(roomId).emit('receiveMessage', {
+                name: "系統",
+                text: `🗳️ ${p.name} 以 ${maxVotes} 票（過半）被放逐了。`
+            });
+        }
+    } else {
+        io.to(roomId).emit('receiveMessage', {
+            name: "系統",
+            text: `🗳️ 投票未過半，無人被放逐。`
+        });
     }
 
+    if (!checkGameOver(roomId)) {
+        triggerNight(roomId);
+    }
+}
     function checkGameOver(roomId) {
         const room = rooms[roomId];
         const alives = room.players.filter(p => p.isAlive);
