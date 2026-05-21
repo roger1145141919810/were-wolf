@@ -150,7 +150,10 @@ io.on('connection', (socket) => {
 
     socket.on('wolfKill', (targetId) => {
         const room = rooms[socket.roomId];
-        if (room?.status === 'night_wolf') {
+        const me = room?.players.find(p => p.id === socket.id);
+        const target = room?.players.find(p => p.id === targetId);
+        // Validate: must be alive wolf, target must be alive non-wolf
+        if (room?.status === 'night_wolf' && me?.role === '狼人' && me?.isAlive && target?.isAlive && target?.role !== '狼人') {
             room.nightAction.wolfVotes[socket.id] = targetId;
             delete room.nightAction.wolfConfirmations[socket.id]; 
             syncWolfUI(room);
@@ -159,7 +162,8 @@ io.on('connection', (socket) => {
 
     socket.on('wolfConfirm', () => {
         const room = rooms[socket.roomId];
-        if (room?.status === 'night_wolf') {
+        const me = room?.players.find(p => p.id === socket.id);
+        if (room?.status === 'night_wolf' && me?.role === '狼人' && me?.isAlive) {
             room.nightAction.wolfConfirmations[socket.id] = true;
             
             // --- 修正：當玩家狼人點確認，強制機器人狼人立即同步目標並點確認 ---
@@ -236,8 +240,12 @@ io.on('connection', (socket) => {
 
     socket.on('castVote', (targetId) => {
         const room = rooms[socket.roomId];
-        if (room?.status === 'voting' && !room.votes[socket.id]) {
+        const me = room?.players.find(p => p.id === socket.id);
+        const target = room?.players.find(p => p.id === targetId);
+        // Validate: must be alive, in voting phase, target must be alive, no double-vote
+        if (room?.status === 'voting' && me?.isAlive && target?.isAlive && !room.votes[socket.id]) {
             room.votes[socket.id] = targetId;
+            io.to(socket.roomId).emit('updateVotes', room.votes);
             const aliveCount = room.players.filter(p => p.isAlive).length;
             if (Object.keys(room.votes).length >= aliveCount) settleVote(socket.roomId);
         }
@@ -277,8 +285,9 @@ io.on('connection', (socket) => {
 
         room.status = 'voting';
         room.votes = {};
-        room.skipVotes = new Set(); // 核心修正：進入投票時清空跳過紀錄
+        room.skipVotes = new Set();
         broadcastUpdate(roomId);
+        io.to(roomId).emit('updateVotes', room.votes);
         
         // 增加延遲讓機器人投票，避免瞬間結束
         setTimeout(() => handleBotActions(roomId, 'voting'), 2000); 
@@ -350,7 +359,10 @@ io.on('connection', (socket) => {
         
         aliveBots.forEach(bot => {
             if (phase === 'night_wolf' && bot.role === '狼人') {
-                const target = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
+                // Wolves should not kill their own team
+                const validTargets = alivePlayers.filter(p => p.role !== '狼人');
+                if (validTargets.length === 0) return;
+                const target = validTargets[Math.floor(Math.random() * validTargets.length)];
                 room.nightAction.wolfVotes[bot.id] = target.id; 
                 room.nightAction.wolfConfirmations[bot.id] = true;
             }
