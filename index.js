@@ -364,7 +364,60 @@ io.on('connection', (socket) => {
             triggerNight(roomId);
         }
     }
+    function checkGameOver(roomId) {
+        const room = rooms[roomId];
 
+        if (!room) return false;
+
+        const alives = room.players.filter(p => p.isAlive);
+
+        const wolves = alives.filter(p => p.role === '狼人').length;
+
+        let winner = null;
+
+        // 狼人全死
+        if (wolves === 0) {
+            winner = "🎉 好人陣營";
+        }
+
+        // 狼人數量 >= 好人
+        else if (wolves >= (alives.length - wolves)) {
+            winner = "🐺 狼人陣營";
+        }
+
+        if (winner) {
+            io.to(roomId).emit('gameOver', { winner });
+
+            room.status = 'waiting';
+
+            room.players.forEach(p => {
+                p.isAlive = true;
+                p.role = null;
+            });
+
+            room.votes = {};
+            room.skipVotes = new Set();
+
+            room.nightAction = {
+                wolfVotes: {},
+                wolfConfirmations: {},
+                finalKilledId: null,
+                savedId: null,
+                poisonedId: null
+            };
+
+            if (roomTimers[roomId]) {
+                clearInterval(roomTimers[roomId]);
+                delete roomTimers[roomId];
+            }
+
+            broadcastUpdate(roomId);
+
+            return true;
+        }
+
+        return false;
+    }
     function handleBotActions(roomId, phase) {
         const room = rooms[roomId];
         if (!room || room.status !== phase) return;
