@@ -1,458 +1,990 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const cors = require('cors');
-
-const app = express();
-app.use(cors());
-const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*", methods: ["GET", "POST"] } });
-
-let rooms = {};
-let roomTimers = {};
-
-io.on('connection', (socket) => {
-    // --- 進入房間 ---
-    socket.on('joinRoom', ({ roomId, username }) => {
-        if (!rooms[roomId]) {
-            rooms[roomId] = { 
-                hostId: socket.id, players: [], status: 'waiting', 
-                votes: {}, skipVotes: new Set(), witchHasSave: true, witchHasPoison: true,
-                nightAction: { wolfVotes: {}, wolfConfirmations: {}, finalKilledId: null, savedId: null, poisonedId: null }
-            };
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>🐺 狼人殺</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        /* ── CSS Variables ── */
+        :root {
+            --bg-deep:      #0c0a0e;
+            --bg-panel:     #13101a;
+            --bg-card:      #1a1525;
+            --border:       #2e2040;
+            --border-glow:  #6b3fa0;
+            --text-primary: #e8dcc8;
+            --text-muted:   #8a7a6a;
+            --text-ghost:   #4a3f50;
+            --red:          #c0392b;
+            --red-glow:     #e74c3c;
+            --gold:         #c9963a;
+            --gold-light:   #f0c060;
+            --green:        #27694a;
+            --green-light:  #2ecc71;
+            --blue:         #1d4e7a;
+            --blue-light:   #3498db;
+            --purple:       #6b3fa0;
+            --purple-light: #9b59b6;
+            --radius:       10px;
         }
-        const room = rooms[roomId];
-        
-        if (room.status !== 'waiting') return socket.emit('errorMessage', '❌ 遊戲進行中');
-        
-        socket.join(roomId);
-        socket.roomId = roomId;
-        socket.username = username;
-        
-        const player = { id: socket.id, name: username, role: null, isHost: room.players.length === 0, isAlive: true, isBot: false };
-        if (player.isHost) room.hostId = socket.id;
-        room.players.push(player);
-        broadcastUpdate(roomId);
-    });
 
-    socket.on('addTestBots', () => {
-        const room = rooms[socket.roomId];
-        if (!room || room.status !== 'waiting') return;
-        const needed = 6 - room.players.length;
-        if (needed <= 0) return;
-        for (let i = 1; i <= needed; i++) {
-            const botId = `bot_${Math.random().toString(36).substr(2, 5)}`;
-            room.players.push({ id: botId, name: `機器人${i}號`, role: null, isHost: false, isAlive: true, isBot: true });
+        /* ── Reset & Base ── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 16px; }
+        body {
+            font-family: 'Crimson Text', 'Georgia', serif;
+            background-color: var(--bg-deep);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            transition: background 1.2s ease;
         }
-        broadcastUpdate(socket.roomId);
-    });
-    socket.on('kickPlayer', (targetId) => {
-        const room = rooms[socket.roomId];
-        const me = room?.players.find(p => p.id === socket.id);
-        
-        // 只有房主、在等待階段、且不是踢自己或機器人時生效
-        if (room?.status === 'waiting' && me?.isHost && socket.id !== targetId) {
-            io.to(targetId).emit('kicked'); // 通知該玩家被踢
-            room.players = room.players.filter(p => p.id !== targetId);
-            
-            const targetSocket = io.sockets.sockets.get(targetId);
-            if (targetSocket) targetSocket.leave(socket.roomId);
-
-            broadcastUpdate(socket.roomId);
+        body::before {
+            content: '';
+            position: fixed; inset: 0; z-index: 0;
+            background:
+                radial-gradient(ellipse 80% 50% at 50% -10%, rgba(107,63,160,0.18) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 40% at 90% 90%, rgba(192,57,43,0.10) 0%, transparent 50%);
+            pointer-events: none;
         }
-    });
-    socket.on('sendWolfMessage', (d) => {
-        const room = rooms[socket.roomId];
-        if (!room) return;
-        room.players.forEach(p => {
-            if (p.role === '狼人' && !p.isBot) {
-                io.to(p.id).emit('receiveWolfMessage', d);
-            }
-        });
-    });
-
-    socket.on('checkRole', (targetId) => {
-        const room = rooms[socket.roomId];
-        const me = room?.players.find(p => p.id === socket.id);
-        
-        if (room?.status === 'night_seer' && me?.role === '預言家' && me?.isAlive) {
-            // 檢查今晚是否已經驗過人
-            if (room.nightAction.seerChecked) {
-                return socket.emit('errorMessage', '❌ 你今晚已經驗過人了');
-            }
-
-            const target = room.players.find(p => p.id === targetId);
-            if (target) {
-                const result = target.role === '狼人' ? '🐺 壞人' : '🕯️ 好人';
-                socket.emit('checkResult', `查驗結果：${target.name} 是 ${result}`);
-                
-                // 標記已驗人
-                room.nightAction.seerChecked = true;
-                broadcastUpdate(socket.roomId); 
-            }
+        body.night-mode {
+            background-color: #080610;
         }
-    });
-
-    socket.on('witchAction', ({ type, targetId }) => {
-        const room = rooms[socket.roomId];
-        const me = room?.players.find(p => p.id === socket.id);
-        
-        if (room?.status === 'night_witch' && me?.role === '女巫' && me?.isAlive) {
-            if (type === 'save') {
-                if (room.witchHasSave) {
-                    if (targetId === room.nightAction.finalKilledId) {
-                        room.nightAction.savedId = targetId;
-                        room.witchHasSave = false;
-                        socket.emit('errorMessage', '✅ 你已成功救回此人');
-                    } else {
-                        socket.emit('errorMessage', '❌ 此人今晚並未倒下，無法使用解藥');
-                    }
-                } else {
-                    socket.emit('errorMessage', '❌ 你已經沒有解藥了');
-                }
-            } else if (type === 'poison') {
-                if (room.witchHasPoison) {
-                    if (room.nightAction.savedId) {
-                        return socket.emit('errorMessage', '❌ 同一個晚上不能同時使用兩瓶藥');
-                    }
-                    room.nightAction.poisonedId = targetId;
-                    room.witchHasPoison = false;
-                    socket.emit('errorMessage', '✅ 已投毒');
-                } else {
-                    socket.emit('errorMessage', '❌ 毒藥已用完');
-                }
-            }
-            broadcastUpdate(socket.roomId);
+        body.night-mode::before {
+            background:
+                radial-gradient(ellipse 80% 50% at 50% -10%, rgba(192,57,43,0.25) 0%, transparent 60%),
+                radial-gradient(ellipse 50% 50% at 10% 100%, rgba(107,63,160,0.15) 0%, transparent 50%);
         }
-    });
-
-    function settleNight(roomId) {
-        const room = rooms[roomId];
-        if (!room) return;
-        let deadIds = [];
-        if (room.nightAction.finalKilledId && room.nightAction.finalKilledId !== room.nightAction.savedId) deadIds.push(room.nightAction.finalKilledId);
-        if (room.nightAction.poisonedId) deadIds.push(room.nightAction.poisonedId);
-        
-        deadIds = [...new Set(deadIds)];
-        room.players.forEach(p => { if (deadIds.includes(p.id)) p.isAlive = false; });
-        
-        const names = room.players.filter(p => deadIds.includes(p.id)).map(p => p.name).join(', ');
-        io.to(roomId).emit('receiveMessage', { name: "系統", text: `🌅 天亮了，死者：${names || '平安夜'}` });
-
-        if (!checkGameOver(roomId)) {
-            room.status = 'day';
-            room.skipVotes = new Set();
-            broadcastUpdate(roomId);
-            startTimer(roomId, 600, () => startVoting(roomId));
-            setTimeout(() => handleBotActions(roomId, 'day'), 5000);
+        body.day-mode {
+            background-color: #111820;
         }
+        body.day-mode::before {
+            background:
+                radial-gradient(ellipse 80% 50% at 50% -10%, rgba(201,150,58,0.20) 0%, transparent 60%),
+                radial-gradient(ellipse 50% 40% at 100% 80%, rgba(39,105,74,0.12) 0%, transparent 50%);
+        }
+
+        /* ── Layout ── */
+        #app { position: relative; z-index: 1; max-width: 520px; margin: 0 auto; padding: 16px 12px 80px; }
+
+        /* ── Typography ── */
+        .gothic { font-family: 'UnifrakturMaguntia', cursive; }
+        .serif-italic { font-style: italic; font-family: 'IM Fell English', serif; }
+
+        /* ── Panels ── */
+        .panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 12px;
+            position: relative;
+            overflow: hidden;
+        }
+        .panel::before {
+            content: '';
+            position: absolute; top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border-glow), transparent);
+            opacity: 0.5;
+        }
+        .panel-title {
+            font-size: 0.75rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+
+        /* ── Setup Screen ── */
+        #setup {
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; min-height: 100vh;
+            padding: 20px;
+        }
+        .logo-title {
+            font-size: clamp(3rem, 12vw, 5rem);
+            color: var(--gold-light);
+            text-shadow: 0 0 30px rgba(201,150,58,0.5), 0 0 60px rgba(201,150,58,0.2);
+            line-height: 1;
+            margin-bottom: 6px;
+            animation: flicker 6s ease-in-out infinite;
+        }
+        @keyframes flicker {
+            0%,100% { opacity:1; text-shadow: 0 0 30px rgba(201,150,58,0.5), 0 0 60px rgba(201,150,58,0.2); }
+            92% { opacity:1; }
+            93% { opacity:0.7; text-shadow: 0 0 10px rgba(201,150,58,0.3); }
+            94% { opacity:1; }
+            96% { opacity:0.85; }
+            97% { opacity:1; }
+        }
+        .logo-sub {
+            font-size: 1rem;
+            color: var(--text-muted);
+            letter-spacing: 0.3em;
+            margin-bottom: 40px;
+            text-transform: uppercase;
+        }
+        .setup-card {
+            width: 100%; max-width: 360px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 28px 24px;
+            position: relative;
+        }
+        .setup-card::after {
+            content: '';
+            position: absolute; inset: 0; border-radius: 14px;
+            background: linear-gradient(135deg, rgba(107,63,160,0.05), transparent 50%, rgba(192,57,43,0.05));
+            pointer-events: none;
+        }
+        .field-label {
+            font-size: 0.72rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            display: block;
+        }
+        .text-input {
+            width: 100%;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'Crimson Text', serif;
+            font-size: 1.05rem;
+            padding: 11px 14px;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            margin-bottom: 16px;
+        }
+        .text-input:focus {
+            border-color: var(--purple);
+            box-shadow: 0 0 0 3px rgba(107,63,160,0.2);
+        }
+        .text-input::placeholder { color: var(--text-ghost); }
+
+        /* ── Buttons ── */
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+            border: none; border-radius: 8px; cursor: pointer;
+            font-family: 'Crimson Text', serif; font-weight: 600;
+            transition: transform 0.1s, opacity 0.2s, box-shadow 0.2s;
+            letter-spacing: 0.03em;
+        }
+        .btn:active { transform: scale(0.97); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-primary {
+            width: 100%; padding: 14px; font-size: 1.1rem;
+            background: linear-gradient(135deg, #7c4dbd, #9b3a3a);
+            color: white;
+            box-shadow: 0 4px 20px rgba(107,63,160,0.3);
+        }
+        .btn-primary:hover:not(:disabled) {
+            box-shadow: 0 4px 28px rgba(107,63,160,0.5);
+            opacity: 0.92;
+        }
+        .btn-danger  { background: var(--red);          color: white; padding: 6px 12px; font-size: 0.9rem; }
+        .btn-success { background: var(--green);         color: white; padding: 6px 12px; font-size: 0.9rem; }
+        .btn-blue    { background: var(--blue);          color: white; padding: 6px 12px; font-size: 0.9rem; }
+        .btn-purple  { background: var(--purple);        color: white; padding: 6px 12px; font-size: 0.9rem; }
+        .btn-gold    { background: #7a5c1e;              color: var(--gold-light); padding: 6px 12px; font-size: 0.9rem; border: 1px solid var(--gold); }
+        .btn-ghost   { background: rgba(255,255,255,0.06); color: var(--text-muted); padding: 6px 12px; font-size: 0.85rem; border: 1px solid var(--border); }
+        .btn-danger:hover:not(:disabled)  { background: var(--red-glow); }
+        .btn-success:hover:not(:disabled) { background: var(--green-light); }
+        .btn-blue:hover:not(:disabled)    { background: var(--blue-light); }
+        .btn-purple:hover:not(:disabled)  { background: var(--purple-light); }
+
+        /* ── Status Bar ── */
+        #statusBar {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 12px; gap: 8px;
+        }
+        #phaseTag {
+            font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase;
+            padding: 4px 12px; border-radius: 20px;
+            background: rgba(107,63,160,0.2); border: 1px solid var(--purple);
+            color: var(--purple-light);
+            transition: all 0.5s ease;
+        }
+        #phaseTag.phase-night {
+            background: rgba(192,57,43,0.15); border-color: var(--red);
+            color: #e07070;
+        }
+        #phaseTag.phase-day {
+            background: rgba(201,150,58,0.15); border-color: var(--gold);
+            color: var(--gold-light);
+        }
+        #timerBox {
+            font-family: 'IM Fell English', serif;
+            font-size: 2rem; font-weight: bold;
+            min-width: 70px; text-align: right;
+            transition: color 0.5s;
+        }
+        #timerBox.night-timer { color: var(--red-glow); text-shadow: 0 0 12px rgba(231,76,60,0.5); }
+        #timerBox.day-timer   { color: var(--gold-light); text-shadow: 0 0 12px rgba(201,150,58,0.4); }
+
+        /* ── Role Banner ── */
+        #roleBanner {
+            text-align: center; padding: 14px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            margin-bottom: 12px;
+            position: relative; overflow: hidden;
+        }
+        #roleBanner.role-wolf   { border-color: var(--red);    background: rgba(192,57,43,0.08); }
+        #roleBanner.role-witch  { border-color: var(--purple); background: rgba(107,63,160,0.08); }
+        #roleBanner.role-seer   { border-color: var(--blue);   background: rgba(29,78,122,0.10); }
+        #roleBanner.role-hunter { border-color: var(--gold);   background: rgba(201,150,58,0.08); }
+        #roleLabel {
+            font-size: 0.68rem; letter-spacing: 0.15em; text-transform: uppercase;
+            color: var(--text-muted); margin-bottom: 4px;
+        }
+        #roleText {
+            font-family: 'IM Fell English', serif; font-style: italic;
+            font-size: 1.5rem;
+        }
+        #roleText.wolf-color   { color: var(--red-glow); }
+        #roleText.witch-color  { color: var(--purple-light); }
+        #roleText.seer-color   { color: var(--blue-light); }
+        #roleText.hunter-color { color: var(--gold-light); }
+        #roleText.good-color   { color: var(--green-light); }
+        #nightNotice {
+            font-size: 0.88rem; color: var(--gold);
+            min-height: 20px; margin-top: 6px;
+            font-style: italic;
+        }
+
+        /* ── Player List ── */
+        #playerList { display: flex; flex-direction: column; gap: 6px; }
+        .player-row {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            transition: border-color 0.2s, background 0.2s;
+            animation: rowIn 0.25s ease forwards;
+        }
+        @keyframes rowIn {
+            from { opacity:0; transform: translateY(6px); }
+            to   { opacity:1; transform: translateY(0); }
+        }
+        .player-row.is-me       { border-color: var(--blue); background: rgba(29,78,122,0.12); }
+        .player-row.is-wolf-buddy { border-color: rgba(192,57,43,0.5); background: rgba(192,57,43,0.06); }
+        .player-row.dead        { opacity: 0.38; filter: grayscale(0.9); }
+        .player-row.is-voted    { border-color: var(--gold); background: rgba(201,150,58,0.08); }
+        .player-avatar {
+            width: 34px; height: 34px; border-radius: 50%;
+            background: var(--bg-panel); border: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.1rem; flex-shrink: 0;
+        }
+        .player-name { flex: 1; font-size: 1rem; }
+        .player-name .crown { color: var(--gold); margin-right: 3px; }
+        .player-name .me-tag { font-size: 0.72rem; color: var(--text-muted); margin-left: 4px; }
+        .player-badges { display: flex; gap: 4px; align-items: center; }
+        .wolf-dot {
+            width: 9px; height: 9px; border-radius: 50%;
+            background: var(--red); border: 1px solid rgba(255,255,255,0.3);
+            transition: box-shadow 0.3s;
+        }
+        .wolf-dot.confirmed { box-shadow: 0 0 8px var(--gold-light); border-color: var(--gold-light); }
+        .vote-tag {
+            font-size: 0.68rem; color: var(--gold);
+            background: rgba(201,150,58,0.15); border: 1px solid rgba(201,150,58,0.3);
+            border-radius: 4px; padding: 1px 5px;
+        }
+        .player-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+        /* ── Wolf Confirm Button ── */
+        #wolfConfirmBtn {
+            width: 100%; margin-top: 10px; padding: 13px;
+            font-size: 1rem; font-family: 'Crimson Text', serif; font-weight: 600;
+            border: none; border-radius: 8px; cursor: pointer;
+            background: linear-gradient(135deg, #7a1515, #c0392b);
+            color: white; letter-spacing: 0.05em;
+            transition: opacity 0.2s, transform 0.1s, box-shadow 0.2s;
+            box-shadow: 0 4px 16px rgba(192,57,43,0.3);
+        }
+        #wolfConfirmBtn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+        #wolfConfirmBtn:not(:disabled):hover { box-shadow: 0 4px 24px rgba(192,57,43,0.5); }
+        #wolfConfirmBtn:active { transform: scale(0.97); }
+
+        /* ── Skip Button ── */
+        #skipBtn {
+            width: 100%;
+            background: rgba(52,152,219,0.12);
+            border: 1px solid var(--blue-light);
+            color: var(--blue-light);
+            padding: 12px; font-size: 0.95rem;
+            border-radius: 8px; cursor: pointer;
+            font-family: 'Crimson Text', serif; font-weight: 600;
+            transition: background 0.2s, box-shadow 0.2s;
+            letter-spacing: 0.03em;
+        }
+        #skipBtn:hover { background: rgba(52,152,219,0.22); box-shadow: 0 0 12px rgba(52,152,219,0.3); }
+
+        /* ── Host Controls ── */
+        #hostControls { display: flex; gap: 8px; flex-wrap: wrap; }
+        #startBtn {
+            flex: 1; padding: 13px;
+            background: linear-gradient(135deg, #1a5e34, #27ae60);
+            border: none; border-radius: 8px; cursor: pointer;
+            color: white; font-family: 'Crimson Text', serif;
+            font-size: 1.05rem; font-weight: 600; letter-spacing: 0.03em;
+            box-shadow: 0 4px 16px rgba(39,174,96,0.3);
+            transition: opacity 0.2s, box-shadow 0.2s;
+        }
+        #startBtn:hover { opacity: 0.9; box-shadow: 0 4px 24px rgba(39,174,96,0.5); }
+        #addBotsBtn {
+            padding: 13px 16px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border);
+            border-radius: 8px; cursor: pointer;
+            color: var(--text-muted); font-family: 'Crimson Text', serif;
+            font-size: 0.9rem;
+            transition: border-color 0.2s, color 0.2s;
+        }
+        #addBotsBtn:hover { border-color: var(--purple); color: var(--purple-light); }
+
+        /* ── Wolf Chat ── */
+        #wolfSection {
+            border-color: rgba(192,57,43,0.4);
+            background: rgba(192,57,43,0.04);
+        }
+        #wolfSection .panel-title { color: #c07070; }
+
+        /* ── Chat Area ── */
+        .chat-area {
+            height: 130px; overflow-y: auto;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 0.9rem; line-height: 1.55;
+            margin-bottom: 8px;
+            scroll-behavior: smooth;
+        }
+        .chat-area::-webkit-scrollbar { width: 4px; }
+        .chat-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+        .chat-msg { margin-bottom: 4px; }
+        .chat-name { font-weight: 600; margin-right: 4px; }
+        .chat-name.system-name { color: var(--gold); font-style: italic; }
+        .chat-name.wolf-name   { color: var(--red-glow); }
+        .chat-name.player-name-colored { color: var(--blue-light); }
+        .chat-row {
+            display: flex; gap: 6px;
+        }
+        .chat-input {
+            flex: 1;
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 8px; color: var(--text-primary);
+            font-family: 'Crimson Text', serif; font-size: 1rem;
+            padding: 9px 12px; outline: none;
+            transition: border-color 0.2s;
+        }
+        .chat-input:focus { border-color: var(--purple); }
+        .chat-input::placeholder { color: var(--text-ghost); }
+        .chat-send {
+            padding: 9px 14px;
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 8px; cursor: pointer; color: var(--text-muted);
+            font-size: 1rem;
+            transition: border-color 0.2s, color 0.2s;
+        }
+        .chat-send:hover { border-color: var(--purple); color: var(--purple-light); }
+
+        /* ── Toast ── */
+        #toastContainer {
+            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+            z-index: 9000; display: flex; flex-direction: column-reverse;
+            align-items: center; gap: 8px; pointer-events: none;
+            width: calc(100% - 32px); max-width: 400px;
+        }
+        .toast {
+            width: 100%;
+            background: var(--bg-panel); border: 1px solid var(--border);
+            border-radius: 10px; padding: 12px 16px;
+            font-size: 0.92rem; line-height: 1.4;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            animation: toastIn 0.3s ease forwards;
+            pointer-events: auto;
+        }
+        @keyframes toastIn {
+            from { opacity:0; transform: translateY(12px) scale(0.96); }
+            to   { opacity:1; transform: translateY(0) scale(1); }
+        }
+        .toast.out { animation: toastOut 0.3s ease forwards; }
+        @keyframes toastOut {
+            to { opacity:0; transform: translateY(8px) scale(0.96); }
+        }
+        .toast-error   { border-color: var(--red);   background: rgba(192,57,43,0.15); color: #f0a0a0; }
+        .toast-success { border-color: #27694a;       background: rgba(39,105,74,0.15); color: #80e0a0; }
+        .toast-info    { border-color: var(--purple); background: rgba(107,63,160,0.15); color: #c0a0e0; }
+        .toast-warn    { border-color: var(--gold);   background: rgba(201,150,58,0.15); color: var(--gold-light); }
+
+        /* ── Modal ── */
+        #modalOverlay {
+            position: fixed; inset: 0; z-index: 8000;
+            background: rgba(0,0,0,0.75); backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center;
+            padding: 20px;
+            animation: fadeIn 0.25s ease;
+        }
+        @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+        #modalOverlay.hidden { display: none; }
+        .modal-card {
+            background: var(--bg-panel); border: 1px solid var(--border);
+            border-radius: 16px; padding: 28px 24px; max-width: 340px; width: 100%;
+            text-align: center; position: relative;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+            animation: modalIn 0.3s cubic-bezier(0.34,1.56,0.64,1) forwards;
+        }
+        @keyframes modalIn {
+            from { opacity:0; transform: scale(0.85); }
+            to   { opacity:1; transform: scale(1); }
+        }
+        .modal-icon { font-size: 3rem; margin-bottom: 10px; }
+        .modal-title {
+            font-family: 'IM Fell English', serif; font-style: italic;
+            font-size: 1.6rem; color: var(--gold-light); margin-bottom: 8px;
+        }
+        .modal-body { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 20px; line-height: 1.5; }
+        .modal-btn {
+            width: 100%; padding: 13px;
+            background: linear-gradient(135deg, var(--purple), #9b3a3a);
+            border: none; border-radius: 8px; cursor: pointer;
+            color: white; font-family: 'Crimson Text', serif;
+            font-size: 1.05rem; font-weight: 600;
+            transition: opacity 0.2s;
+        }
+        .modal-btn:hover { opacity: 0.88; }
+
+        /* ── Divider ── */
+        .divider {
+            height: 1px; background: var(--border);
+            margin: 12px 0; position: relative;
+        }
+        .divider::after {
+            content: '✦';
+            position: absolute; left: 50%; top: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--bg-panel);
+            padding: 0 8px; color: var(--text-ghost);
+            font-size: 0.65rem;
+        }
+
+        /* ── Utility ── */
+        .hidden { display: none !important; }
+        .flex-between { display: flex; justify-content: space-between; align-items: center; }
+        .mt-8 { margin-top: 8px; }
+        .text-muted { color: var(--text-muted); font-size: 0.85rem; }
+        .skull-icon { font-size: 0.85rem; margin-left: 4px; opacity: 0.6; }
+
+        /* ── Death Overlay (full screen flash) ── */
+        #deathFlash {
+            position: fixed; inset: 0; z-index: 7000;
+            background: rgba(192,57,43,0.25);
+            pointer-events: none; opacity: 0;
+            transition: opacity 0.3s;
+        }
+        #deathFlash.active { animation: deathPulse 1.5s ease forwards; }
+        @keyframes deathPulse {
+            0%   { opacity: 0; }
+            20%  { opacity: 1; }
+            100% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── Setup Screen ── -->
+<div id="setup">
+    <div class="gothic logo-title">狼人殺</div>
+    <div class="logo-sub">Werewolf · 連線版</div>
+
+    <div class="setup-card">
+        <label class="field-label" for="roomInput">房間號碼</label>
+        <input class="text-input" type="text" id="roomInput" placeholder="輸入任意房號" autocomplete="off">
+
+        <label class="field-label" for="usernameInput">玩家暱稱</label>
+        <input class="text-input" type="text" id="usernameInput" placeholder="你的名字" autocomplete="off"
+               onkeypress="if(event.key==='Enter') join()">
+
+        <button class="btn btn-primary" onclick="join()">
+            ⚔️ 進入村莊
+        </button>
+    </div>
+</div>
+
+<!-- ── Game Screen ── -->
+<div id="game" class="hidden">
+    <div id="app">
+
+        <!-- Status Bar -->
+        <div id="statusBar">
+            <div id="phaseTag">等待開局</div>
+            <div id="timerBox" class="day-timer">—</div>
+        </div>
+
+        <!-- Role Banner -->
+        <div id="roleBanner">
+            <div id="roleLabel">你的身分</div>
+            <div id="roleText">⏳ 等待發牌...</div>
+            <div id="nightNotice"></div>
+        </div>
+
+        <!-- Host Controls -->
+        <div id="hostControls" class="panel hidden">
+            <div class="panel-title">房主控制</div>
+            <div style="display:flex; gap:8px;">
+                <button id="startBtn" onclick="socket.emit('startGame')">⚔️ 正式開始遊戲</button>
+                <button id="addBotsBtn" onclick="socket.emit('addTestBots')">🤖 補滿機器人</button>
+            </div>
+        </div>
+
+        <!-- Skip Button -->
+        <div id="skipWrapper" class="hidden mt-8">
+            <button id="skipBtn" onclick="socket.emit('castSkipVote')">
+                ⏭️ 我發言完了，準備投票
+            </button>
+        </div>
+
+        <!-- Players -->
+        <div class="panel">
+            <div class="flex-between" style="margin-bottom:10px;">
+                <div class="panel-title" style="margin:0;">👥 玩家名單</div>
+                <div id="aliveCount" class="text-muted"></div>
+            </div>
+            <div id="playerList"></div>
+        </div>
+
+        <!-- Wolf Chat -->
+        <div id="wolfSection" class="panel hidden">
+            <div class="panel-title">🐾 狼人私密頻道</div>
+            <div id="wolfChatBox" class="chat-area"></div>
+            <div class="chat-row">
+                <input class="chat-input" type="text" id="wolfInput" placeholder="與同伴策劃..."
+                       onkeypress="if(event.key==='Enter') sendWolfChat()" style="border-color: rgba(192,57,43,0.4);">
+                <button class="chat-send" onclick="sendWolfChat()" style="border-color:rgba(192,57,43,0.4);">↑</button>
+            </div>
+        </div>
+
+        <!-- Public Chat -->
+        <div class="panel">
+            <div class="panel-title">💬 公開討論</div>
+            <div id="chatBox" class="chat-area"></div>
+            <div class="chat-row">
+                <input class="chat-input" type="text" id="chatInput" placeholder="發言..."
+                       onkeypress="if(event.key==='Enter') sendChat()">
+                <button class="chat-send" onclick="sendChat()">↑</button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ── Toast Container ── -->
+<div id="toastContainer"></div>
+
+<!-- ── Modal ── -->
+<div id="modalOverlay" class="hidden">
+    <div class="modal-card">
+        <div class="modal-icon" id="modalIcon">🐺</div>
+        <div class="modal-title" id="modalTitle">遊戲結束</div>
+        <div class="modal-body" id="modalBody"></div>
+        <button class="modal-btn" id="modalBtn" onclick="closeModal()">繼續</button>
+    </div>
+</div>
+
+<!-- ── Death Flash ── -->
+<div id="deathFlash"></div>
+
+<!-- ── Scripts ── -->
+<script>
+    /* ─────────────────────────────────
+       State
+    ───────────────────────────────── */
+    const socket = io("https://were-wolf.onrender.com");
+    let myName = "", myRole = null, amIHost = false, isAlive = true;
+    let wolfStatusData = [], witchPotions = { hasSave: true, hasPoison: true };
+    let lastPlayers = [], currentStatus = 'waiting', currentVotes = {};
+
+    /* ─────────────────────────────────
+       Toast System
+    ───────────────────────────────── */
+    function showToast(msg, type = 'info', duration = 3500) {
+        const container = document.getElementById('toastContainer');
+        const t = document.createElement('div');
+        t.className = `toast toast-${type}`;
+        t.textContent = msg;   // safe: no innerHTML
+        container.appendChild(t);
+        setTimeout(() => {
+            t.classList.add('out');
+            setTimeout(() => t.remove(), 300);
+        }, duration);
     }
 
-    socket.on('wolfKill', (targetId) => {
-        const room = rooms[socket.roomId];
-        const me = room?.players.find(p => p.id === socket.id);
-        const target = room?.players.find(p => p.id === targetId);
-        // Validate: must be alive wolf, target must be alive non-wolf
-        if (room?.status === 'night_wolf' && me?.role === '狼人' && me?.isAlive && target?.isAlive && target?.role !== '狼人') {
-            room.nightAction.wolfVotes[socket.id] = targetId;
-            delete room.nightAction.wolfConfirmations[socket.id]; 
-            syncWolfUI(room);
-        }
-    });
+    /* ─────────────────────────────────
+       Modal System
+    ───────────────────────────────── */
+    function showModal(icon, title, body, btnText = '確認') {
+        document.getElementById('modalIcon').textContent = icon;
+        document.getElementById('modalTitle').textContent = title;
+        document.getElementById('modalBody').textContent = body;
+        document.getElementById('modalBtn').textContent = btnText;
+        document.getElementById('modalOverlay').classList.remove('hidden');
+    }
+    function closeModal() {
+        document.getElementById('modalOverlay').classList.add('hidden');
+    }
 
-    socket.on('wolfConfirm', () => {
-        const room = rooms[socket.roomId];
-        const me = room?.players.find(p => p.id === socket.id);
-        if (room?.status === 'night_wolf' && me?.role === '狼人' && me?.isAlive) {
-            room.nightAction.wolfConfirmations[socket.id] = true;
-            
-            // --- 修正：當玩家狼人點確認，強制機器人狼人立即同步目標並點確認 ---
-            const myTarget = room.nightAction.wolfVotes[socket.id];
-            if (myTarget) {
-                room.players.filter(p => p.role === '狼人' && p.isAlive && p.isBot).forEach(bot => {
-                    room.nightAction.wolfVotes[bot.id] = myTarget;
-                    room.nightAction.wolfConfirmations[bot.id] = true;
+    /* ─────────────────────────────────
+       XSS-safe DOM helpers
+    ───────────────────────────────── */
+    function safeText(str) {
+        const d = document.createElement('span');
+        d.textContent = str;
+        return d.innerHTML;
+    }
+    function appendChat(boxId, name, text, nameClass = 'player-name-colored') {
+        const box = document.getElementById(boxId);
+        const div = document.createElement('div');
+        div.className = 'chat-msg';
+        const nameEl = document.createElement('span');
+        nameEl.className = `chat-name ${nameClass}`;
+        nameEl.textContent = name + ':';
+        const textEl = document.createElement('span');
+        textEl.textContent = ' ' + text;
+        div.appendChild(nameEl);
+        div.appendChild(textEl);
+        box.appendChild(div);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    /* ─────────────────────────────────
+       Join
+    ───────────────────────────────── */
+    function join() {
+        myName = document.getElementById('usernameInput').value.trim();
+        const r = document.getElementById('roomInput').value.trim();
+        if (!r || !myName) return showToast('請輸入房號與暱稱', 'error');
+        socket.emit('joinRoom', { roomId: r, username: myName });
+    }
+
+    /* ─────────────────────────────────
+       Phase Helpers
+    ───────────────────────────────── */
+    const STATUS_MAP = {
+        waiting:     '等待開局',
+        night_wolf:  '狼人行動',
+        night_witch: '女巫行動',
+        night_seer:  '預言家查驗',
+        day:         '自由發言',
+        voting:      '投票放逐',
+    };
+
+    function applyPhaseStyle(status) {
+        const phaseTag = document.getElementById('phaseTag');
+        const timerBox = document.getElementById('timerBox');
+        const isNight = status.startsWith('night');
+        const isDay   = status === 'day' || status === 'voting';
+
+        phaseTag.textContent = STATUS_MAP[status] || status;
+        phaseTag.className = isNight ? 'phase-night' : (isDay ? 'phase-day' : '');
+
+        document.body.className = isNight ? 'night-mode' : (isDay ? 'day-mode' : '');
+        timerBox.className = isNight ? 'night-timer' : 'day-timer';
+    }
+
+    /* ─────────────────────────────────
+       Render Player List
+    ───────────────────────────────── */
+    function renderList(players, status) {
+        if (!players || players.length === 0) return;
+        lastPlayers = players;
+        currentStatus = status;
+        const list = document.getElementById('playerList');
+        list.innerHTML = '';
+
+        const isWolf   = status === 'night_wolf';
+        const isWitch  = status === 'night_witch';
+        const isSeer   = status === 'night_seer';
+        const isVoting = status === 'voting';
+        const isDay    = status === 'day';
+        const isWaiting = status === 'waiting';
+
+        const aliveCount = players.filter(p => p.isAlive).length;
+        document.getElementById('aliveCount').textContent = `存活 ${aliveCount}/${players.length}`;
+
+        players.forEach(p => {
+            const isMe = p.id === socket.id;
+            const isMyVote = currentVotes[socket.id] === p.id;
+            const isWolfBuddy = myRole === '狼人' && p.role === '狼人' && !isMe;
+
+            const row = document.createElement('div');
+            row.className = [
+                'player-row',
+                !p.isAlive ? 'dead' : '',
+                isMe ? 'is-me' : '',
+                isWolfBuddy ? 'is-wolf-buddy' : '',
+                isMyVote && isVoting ? 'is-voted' : '',
+            ].filter(Boolean).join(' ');
+
+            // Avatar
+            const avatar = document.createElement('div');
+            avatar.className = 'player-avatar';
+            avatar.textContent = p.isBot ? '🤖' : (isWolfBuddy ? '🐺' : '👤');
+
+            // Name
+            const nameWrap = document.createElement('div');
+            nameWrap.className = 'player-name';
+            let nameHTML = '';
+            if (p.isHost) nameHTML += '<span class="crown">👑</span>';
+            nameHTML += safeText(p.name);
+            if (isMe) nameHTML += '<span class="me-tag">(我)</span>';
+            if (!p.isAlive) nameHTML += '<span class="skull-icon">💀</span>';
+            nameWrap.innerHTML = nameHTML;
+
+            // Badges (wolf dots + vote tag)
+            const badges = document.createElement('div');
+            badges.className = 'player-badges';
+            if (myRole === '狼人' && isWolf) {
+                wolfStatusData.filter(v => v.targetId === p.id).forEach(v => {
+                    const dot = document.createElement('div');
+                    dot.className = `wolf-dot${v.isConfirmed ? ' confirmed' : ''}`;
+                    badges.appendChild(dot);
                 });
             }
-            syncWolfUI(room);
-            checkWolfConsensus(socket.roomId);
+            if (isMyVote && isVoting) {
+                const tag = document.createElement('span');
+                tag.className = 'vote-tag';
+                tag.textContent = '🗳️';
+                badges.appendChild(tag);
+            }
+
+            // Action Buttons
+            const actions = document.createElement('div');
+            actions.className = 'player-actions';
+            if (isAlive && p.isAlive && !isWaiting) {
+                if (isWolf && myRole === '狼人' && !isMe) {
+                    const b = document.createElement('button');
+                    b.className = 'btn btn-danger';
+                    b.textContent = '選';
+                    b.onclick = () => socket.emit('wolfKill', p.id);
+                    actions.appendChild(b);
+                }
+                if (isWitch && myRole === '女巫') {
+                    if (witchPotions.hasSave) {
+                        const b = document.createElement('button');
+                        b.className = 'btn btn-success';
+                        b.textContent = '救';
+                        b.onclick = () => socket.emit('witchAction', { type: 'save', targetId: p.id });
+                        actions.appendChild(b);
+                    }
+                    if (witchPotions.hasPoison && !isMe) {
+                        const b = document.createElement('button');
+                        b.className = 'btn btn-purple';
+                        b.textContent = '毒';
+                        b.onclick = () => socket.emit('witchAction', { type: 'poison', targetId: p.id });
+                        actions.appendChild(b);
+                    }
+                }
+                if (isSeer && myRole === '預言家' && !isMe) {
+                    const b = document.createElement('button');
+                    b.className = 'btn btn-blue';
+                    b.textContent = '驗';
+                    b.onclick = () => socket.emit('checkRole', p.id);
+                    actions.appendChild(b);
+                }
+                if (isVoting && !isMe) {
+                    const b = document.createElement('button');
+                    b.className = 'btn btn-gold';
+                    b.textContent = '投';
+                    b.onclick = () => socket.emit('castVote', p.id);
+                    actions.appendChild(b);
+                }
+            }
+            if (amIHost && isWaiting && !isMe && !p.isBot) {
+                const b = document.createElement('button');
+                b.className = 'btn btn-ghost';
+                b.textContent = '踢';
+                b.onclick = () => socket.emit('kickPlayer', p.id);
+                actions.appendChild(b);
+            }
+
+            row.appendChild(avatar);
+            row.appendChild(nameWrap);
+            row.appendChild(badges);
+            row.appendChild(actions);
+            list.appendChild(row);
+        });
+
+        // Wolf Confirm Button
+        let wolfBtn = document.getElementById('wolfConfirmBtn');
+        if (isWolf && myRole === '狼人' && isAlive) {
+            if (!wolfBtn) {
+                wolfBtn = document.createElement('button');
+                wolfBtn.id = 'wolfConfirmBtn';
+                wolfBtn.onclick = () => socket.emit('wolfConfirm');
+                list.appendChild(wolfBtn);
+            } else {
+                list.appendChild(wolfBtn);
+            }
+            const myV = wolfStatusData.find(v => v.id === socket.id);
+            wolfBtn.textContent = myV?.isConfirmed ? '✅ 已確認殺害目標' : '🔒 確定此殺害目標';
+            wolfBtn.disabled = !myV?.targetId || myV?.isConfirmed;
+            wolfBtn.style.background = myV?.isConfirmed
+                ? 'linear-gradient(135deg, #333, #444)'
+                : 'linear-gradient(135deg, #7a1515, #c0392b)';
+        } else {
+            if (wolfBtn) wolfBtn.remove();
         }
+
+        // Skip & Wolf Section visibility
+        document.getElementById('skipWrapper').classList.toggle('hidden', !isDay || !isAlive);
+        document.getElementById('wolfSection').classList.toggle('hidden',
+            myRole !== '狼人' || isWaiting);
+    }
+
+    /* ─────────────────────────────────
+       Socket Events
+    ───────────────────────────────── */
+    socket.on('updatePlayers', ({ players, status, witchPotions: wp }) => {
+        document.getElementById('setup').classList.add('hidden');
+        document.getElementById('game').classList.remove('hidden');
+
+        const me = players.find(p => p.id === socket.id);
+        if (me) { isAlive = me.isAlive; amIHost = me.isHost; }
+        if (wp) witchPotions = wp;
+
+        applyPhaseStyle(status);
+
+        const hostCtrl = document.getElementById('hostControls');
+        hostCtrl.classList.toggle('hidden', !amIHost || status !== 'waiting');
+
+        if (status === 'waiting') {
+            document.getElementById('roleText').textContent = '⏳ 等待發牌...';
+            document.getElementById('roleText').className = '';
+            document.getElementById('roleBanner').className = '';
+            document.getElementById('nightNotice').textContent = '';
+            document.getElementById('timerBox').textContent = '—';
+            myRole = null;
+            wolfStatusData = [];
+            currentVotes = {};
+        }
+        if (!status.startsWith('night')) {
+            document.getElementById('nightNotice').textContent = '';
+        }
+
+        renderList(players, status);
     });
 
-    function triggerNight(roomId) {
-        const room = rooms[roomId];
-        if (!room) return;
-        room.status = 'night_wolf';
-        // 在這裡加入 seerChecked: false，確保每晚開始時都會重置狀態
-        room.nightAction = { 
-            wolfVotes: {}, 
-            wolfConfirmations: {}, 
-            finalKilledId: null, 
-            savedId: null, 
-            poisonedId: null,
-            seerChecked: false  // <--- 核心改動：重置預言家查驗狀態
+    socket.on('assignRole', role => {
+        myRole = role;
+        const el = document.getElementById('roleText');
+        const banner = document.getElementById('roleBanner');
+        el.textContent = '你的身分：' + role;
+        // Style per role
+        const colorMap = {
+            '狼人': ['wolf-color', 'role-wolf'],
+            '女巫': ['witch-color', 'role-witch'],
+            '預言家': ['seer-color', 'role-seer'],
+            '獵人': ['hunter-color', 'role-hunter'],
         };
-        broadcastUpdate(roomId);
-        setTimeout(() => handleBotActions(roomId, 'night_wolf'), 5000);
-        startTimer(roomId, 40, () => triggerWitchPhase(roomId));
-    }
-
-    function triggerWitchPhase(roomId) {
-        const room = rooms[roomId];
-        if (!room) return;
-        
-        room.status = 'night_witch';
-        
-        const witch = room.players.find(p => p.role === '女巫' && p.isAlive);
-        if (witch && !witch.isBot) {
-            const killedPlayer = room.players.find(p => p.id === room.nightAction.finalKilledId);
-            const killedName = killedPlayer ? killedPlayer.name : "無人死亡";
-            io.to(witch.id).emit('witchTarget', { name: killedName });
-        }
-        
-        // 關鍵：進入階段立即廣播，更新前端按鈕顯示狀態
-        broadcastUpdate(roomId);
-        
-        setTimeout(() => handleBotActions(roomId, 'night_witch'), 3000);
-        
-        startTimer(roomId, 20, () => {
-            room.status = 'night_seer';
-            broadcastUpdate(roomId);
-            startTimer(roomId, 20, () => settleNight(roomId));
-        });
-    }
-
-    socket.on('startGame', () => {
-        const room = rooms[socket.roomId];
-        if (!room || room.players.length < 6) return socket.emit('errorMessage', '人數不足 6 人');
-        
-        room.status = 'night_wolf'; 
-        room.witchHasSave = true; 
-        room.witchHasPoison = true;
-        const roles = ['狼人', '狼人', '預言家', '女巫', '村民', '村民'].sort(() => Math.random() - 0.5);
-        room.players.forEach((p, i) => { 
-            p.isAlive = true; 
-            p.role = roles[i]; 
-            if (!p.isBot) io.to(p.id).emit('assignRole', p.role); 
-        });
-        triggerNight(socket.roomId);
+        const [textClass, bannerClass] = colorMap[role] || ['good-color', ''];
+        el.className = textClass;
+        banner.className = bannerClass;
     });
 
-    socket.on('castVote', (targetId) => {
-        const room = rooms[socket.roomId];
-        const me = room?.players.find(p => p.id === socket.id);
-        const target = room?.players.find(p => p.id === targetId);
-        // Validate: must be alive, in voting phase, target must be alive, no double-vote
-        if (room?.status === 'voting' && me?.isAlive && target?.isAlive && !room.votes[socket.id]) {
-            room.votes[socket.id] = targetId;
-            io.to(socket.roomId).emit('updateVotes', room.votes);
-            const aliveCount = room.players.filter(p => p.isAlive).length;
-            if (Object.keys(room.votes).length >= aliveCount) settleVote(socket.roomId);
+    socket.on('updateWolfUI', data => {
+        wolfStatusData = data;
+        renderList(lastPlayers, currentStatus);
+    });
+
+    socket.on('updateVotes', votes => {
+        currentVotes = votes;
+        renderList(lastPlayers, currentStatus);
+    });
+
+    socket.on('timerUpdate', s => {
+        const el = document.getElementById('timerBox');
+        if (s >= 60) {
+            const m = Math.floor(s / 60);
+            const sec = String(s % 60).padStart(2, '0');
+            el.textContent = `${m}:${sec}`;
+        } else {
+            el.textContent = s;
+            if (s <= 10) el.style.animation = 'none'; // could pulse
         }
     });
 
-    socket.on('castSkipVote', () => {
-        const room = rooms[socket.roomId];
-        if (room?.status === 'day') {
-            room.skipVotes.add(socket.id);
-            const aliveCount = room.players.filter(p => p.isAlive).length;
-            // 門檻設定：超過半數或全體減一（可依喜好調整，此處維持原邏輯但增加廣播）
-            const required = Math.max(1, aliveCount - 1);
-            
-            io.to(socket.roomId).emit('receiveMessage', { 
-                name: "系統", 
-                text: `⏩ ${socket.username} 已準備好投票。目前進度: ${room.skipVotes.size}/${required}` 
-            });
+    socket.on('receiveMessage', d => appendChat('chatBox', d.name, d.text,
+        d.name === '系統' ? 'system-name' : 'player-name-colored'));
 
-            // 核心修正：點擊後立即更新所有人的 UI，讓跳過按鈕能正確隱藏或顯示狀態
-            broadcastUpdate(socket.roomId);
+    socket.on('receiveWolfMessage', d => appendChat('wolfChatBox', d.name, d.text, 'wolf-name'));
 
-            if (room.skipVotes.size >= required) {
-                startVoting(socket.roomId);
-            }
+    socket.on('witchTarget', d => {
+        if (myRole === '女巫') {
+            document.getElementById('nightNotice').textContent =
+                `🧪 系統通知：${d.name} 昨晚倒下了`;
         }
     });
 
-    function startVoting(roomId) {
-        const room = rooms[roomId];
-        if(!room || room.status === 'voting') return;
-
-        // 停止白天的 10 分鐘計時器
-        if (roomTimers[roomId]) {
-            clearInterval(roomTimers[roomId]);
-            delete roomTimers[roomId];
-        }
-
-        room.status = 'voting';
-        room.votes = {};
-        room.skipVotes = new Set();
-        broadcastUpdate(roomId);
-        io.to(roomId).emit('updateVotes', room.votes);
-        
-        // 增加延遲讓機器人投票，避免瞬間結束
-        setTimeout(() => handleBotActions(roomId, 'voting'), 2000); 
-        startTimer(roomId, 30, () => settleVote(roomId));
-    }
-
-    function settleVote(roomId) {
-        const room = rooms[roomId];
-        if (!room || room.status !== 'voting') return;
-        const tally = {};
-        Object.values(room.votes).forEach(id => { if (id) tally[id] = (tally[id] || 0) + 1; });
-        let maxVotes = 0, expelledId = null;
-        for (const [id, count] of Object.entries(tally)) { if (count > maxVotes) { maxVotes = count; expelledId = id; } }
-        if (expelledId) {
-            const p = room.players.find(p => p.id === expelledId);
-            if (p) { p.isAlive = false; io.to(roomId).emit('receiveMessage', { name: "系統", text: `🗳️ 投票結果：${p.name} 被放逐了。` }); }
-        }
-        if (!checkGameOver(roomId)) triggerNight(roomId);
-    }
-
-    function startTimer(roomId, time, cb) {
-        if (roomTimers[roomId]) clearInterval(roomTimers[roomId]);
-        let t = time;
-        roomTimers[roomId] = setInterval(() => {
-            io.to(roomId).emit('timerUpdate', t);
-            if (t <= 0) { 
-                clearInterval(roomTimers[roomId]); 
-                delete roomTimers[roomId];
-                cb(); 
-            }
-            t--;
-        }, 1000);
-    }
-
-    function checkGameOver(roomId) {
-        const room = rooms[roomId];
-        const alives = room.players.filter(p => p.isAlive);
-        const wolves = alives.filter(p => p.role === '狼人').length;
-        
-        let winner = null;
-        if (wolves === 0) winner = "🎉 好人陣營";
-        else if (wolves >= (alives.length - wolves)) winner = "🐺 狼人陣營";
-
-        if (winner) {
-            io.to(roomId).emit('gameOver', { winner });
-            room.status = 'waiting';
-            room.players.forEach(p => {
-                p.isAlive = true; 
-                p.role = null; 
-            });
-            room.votes = {};
-            room.skipVotes = new Set();
-            room.nightAction = { wolfVotes: {}, wolfConfirmations: {}, finalKilledId: null, savedId: null, poisonedId: null };
-            if (roomTimers[roomId]) {
-                clearInterval(roomTimers[roomId]);
-                delete roomTimers[roomId];
-            }
-            broadcastUpdate(roomId);
-            return true;
-        }
-        return false;
-    }
-
-    function handleBotActions(roomId, phase) {
-        const room = rooms[roomId];
-        if (!room || room.status !== phase) return;
-        const aliveBots = room.players.filter(p => p.isBot && p.isAlive);
-        const alivePlayers = room.players.filter(p => p.isAlive);
-        
-        aliveBots.forEach(bot => {
-            if (phase === 'night_wolf' && bot.role === '狼人') {
-                // Wolves should not kill their own team
-                const validTargets = alivePlayers.filter(p => p.role !== '狼人');
-                if (validTargets.length === 0) return;
-                const target = validTargets[Math.floor(Math.random() * validTargets.length)];
-                room.nightAction.wolfVotes[bot.id] = target.id; 
-                room.nightAction.wolfConfirmations[bot.id] = true;
-            }
-            if (phase === 'night_witch' && bot.role === '女巫') {
-                if (room.witchHasSave && room.nightAction.finalKilledId) { 
-                    room.nightAction.savedId = room.nightAction.finalKilledId; 
-                    room.witchHasSave = false; 
-                }
-            }
-            if (phase === 'day' && room.status === 'day') room.skipVotes.add(bot.id);
-            if (phase === 'voting' && !room.votes[bot.id]) {
-                const target = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
-                room.votes[bot.id] = target.id;
-            }
-        });
-        
-        if (phase === 'night_wolf') { syncWolfUI(room); checkWolfConsensus(roomId); }
-        else if (phase === 'day') {
-            const required = Math.max(1, room.players.filter(p => p.isAlive).length - 1);
-            if (room.skipVotes.size >= required) startVoting(roomId);
-        } else if (phase === 'voting') {
-            const aliveCount = room.players.filter(p => p.isAlive).length;
-            if (Object.keys(room.votes).length >= aliveCount) settleVote(roomId);
-        }
-    }
-
-    // --- 修正：更穩健的共識判斷 ---
-    function checkWolfConsensus(roomId) {
-        const room = rooms[roomId];
-        if (!room || room.status !== 'night_wolf') return;
-
-        const aliveWolves = room.players.filter(p => p.role === '狼人' && p.isAlive);
-        const confirms = aliveWolves.filter(w => room.nightAction.wolfConfirmations[w.id]);
-        
-        // 如果所有活著的狼人都點擊了確認
-        if (confirms.length === aliveWolves.length && aliveWolves.length > 0) {
-            const votes = aliveWolves.map(w => room.nightAction.wolfVotes[w.id]);
-            const uniqueVotes = [...new Set(votes)];
-            
-            // 且所有人殺的是同一個人
-            if (uniqueVotes.length === 1 && uniqueVotes[0] !== null) {
-                room.nightAction.finalKilledId = uniqueVotes[0]; 
-                // 停止計時器並直接跳女巫階段
-                if (roomTimers[roomId]) {
-                    clearInterval(roomTimers[roomId]);
-                    delete roomTimers[roomId];
-                }
-                triggerWitchPhase(roomId);
-            }
-        }
-    }
-
-    function broadcastUpdate(roomId) {
-        const r = rooms[roomId];
-        if (!r) return;
-        io.to(roomId).emit('updatePlayers', { 
-            players: r.players, 
-            status: r.status, 
-            witchPotions: { hasSave: r.witchHasSave, hasPoison: r.witchHasPoison } 
-        });
-    }
-
-    function syncWolfUI(room) {
-        const aliveWolves = room.players.filter(p => p.role === '狼人' && p.isAlive);
-        const data = aliveWolves.map(w => ({ 
-            id: w.id, 
-            targetId: room.nightAction.wolfVotes[w.id] || null, 
-            isConfirmed: !!room.nightAction.wolfConfirmations[w.id] 
-        }));
-        aliveWolves.forEach(w => { if (!w.isBot) io.to(w.id).emit('updateWolfUI', data); });
-    }
-
-    socket.on('sendMessage', (d) => io.to(socket.roomId).emit('receiveMessage', d));
-
-    socket.on('disconnect', () => {
-        const room = rooms[socket.roomId];
-        if (room) {
-            room.players = room.players.filter(p => p.id !== socket.id);
-            if (room.players.length === 0) { 
-                if (roomTimers[socket.roomId]) clearInterval(roomTimers[socket.roomId]); 
-                delete rooms[socket.roomId]; 
-            } else { 
-                if (socket.id === room.hostId) { 
-                    room.hostId = room.players[0].id; 
-                    room.players[0].isHost = true; 
-                } 
-                broadcastUpdate(socket.roomId); 
-            }
-        }
+    socket.on('checkResult', msg => {
+        const isWolf = msg.includes('壞人') || msg.includes('狼');
+        showToast('🔮 ' + msg, isWolf ? 'error' : 'success', 5000);
     });
-});
 
-server.listen(process.env.PORT || 3000, () => console.log('Server running...'));
+    socket.on('errorMessage', msg => {
+        const isSuccess = msg.startsWith('✅');
+        showToast(msg, isSuccess ? 'success' : 'error');
+    });
+
+    socket.on('kicked', () => {
+        showModal('🚪', '你被移出房間', '房主已將你從本局遊戲中移出。', '重新進入');
+        document.getElementById('modalBtn').onclick = () => location.reload();
+    });
+
+    socket.on('gameOver', d => {
+        // Brief flash
+        const flash = document.getElementById('deathFlash');
+        flash.classList.add('active');
+        setTimeout(() => flash.classList.remove('active'), 1500);
+
+        setTimeout(() => {
+            const isWolfWin = d.winner.includes('狼人');
+            showModal(
+                isWolfWin ? '🐺' : '🌟',
+                '遊戲結束',
+                `贏家是：${d.winner}\n\n房間仍保留，可繼續下一局。`,
+                '繼續下一局'
+            );
+        }, 600);
+
+        myRole = null;
+        wolfStatusData = [];
+    });
+
+    /* ─────────────────────────────────
+       Chat helpers
+    ───────────────────────────────── */
+    function sendChat() {
+        const i = document.getElementById('chatInput');
+        const text = i.value.trim();
+        if (text) { socket.emit('sendMessage', { name: myName, text }); i.value = ''; }
+    }
+    function sendWolfChat() {
+        const i = document.getElementById('wolfInput');
+        const text = i.value.trim();
+        if (text) { socket.emit('sendWolfMessage', { name: myName, text }); i.value = ''; }
+    }
+</script>
+</body>
+</html>
