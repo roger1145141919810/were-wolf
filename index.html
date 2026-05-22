@@ -1,754 +1,1709 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
     <title>🐺 狼人殺 / Werewolf / 人狼ゲーム</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=IM+Fell+English:ital@0;1&display=swap"
+        rel="stylesheet">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         :root {
-            --bg-deep:#0c0a0e; --bg-panel:#13101a; --bg-card:#1a1525;
-            --border:#2e2040; --border-glow:#6b3fa0;
-            --text-primary:#e8dcc8; --text-muted:#8a7a6a; --text-ghost:#4a3f50;
-            --red:#c0392b; --red-glow:#e74c3c; --gold:#c9963a; --gold-light:#f0c060;
-            --green:#27694a; --green-light:#2ecc71; --blue:#1d4e7a; --blue-light:#3498db;
-            --purple:#6b3fa0; --purple-light:#9b59b6; --radius:10px;
+            --bg-deep: #0c0a0e;
+            --bg-panel: #13101a;
+            --bg-card: #1a1525;
+            --border: #2e2040;
+            --border-glow: #6b3fa0;
+            --text-primary: #e8dcc8;
+            --text-muted: #8a7a6a;
+            --text-ghost: #4a3f50;
+            --red: #c0392b;
+            --red-glow: #e74c3c;
+            --gold: #c9963a;
+            --gold-light: #f0c060;
+            --green: #27694a;
+            --green-light: #2ecc71;
+            --blue: #1d4e7a;
+            --blue-light: #3498db;
+            --purple: #6b3fa0;
+            --purple-light: #9b59b6;
+            --radius: 10px;
         }
-        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-        html{font-size:16px}
-        body{font-family:'Crimson Text','Georgia',serif;background-color:var(--bg-deep);color:var(--text-primary);min-height:100vh;overflow-x:hidden;transition:background 1.2s ease}
-        body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradient(ellipse 80% 50% at 50% -10%,rgba(107,63,160,.18) 0%,transparent 60%),radial-gradient(ellipse 60% 40% at 90% 90%,rgba(192,57,43,.10) 0%,transparent 50%);pointer-events:none}
-        body.night-mode{background-color:#080610}
-        body.night-mode::before{background:radial-gradient(ellipse 80% 50% at 50% -10%,rgba(192,57,43,.25) 0%,transparent 60%),radial-gradient(ellipse 50% 50% at 10% 100%,rgba(107,63,160,.15) 0%,transparent 50%)}
-        body.day-mode{background-color:#111820}
-        body.day-mode::before{background:radial-gradient(ellipse 80% 50% at 50% -10%,rgba(201,150,58,.20) 0%,transparent 60%),radial-gradient(ellipse 50% 40% at 100% 80%,rgba(39,105,74,.12) 0%,transparent 50%)}
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0
+        }
+
+        html {
+            font-size: 16px
+        }
+
+        body {
+            font-family: 'Crimson Text', 'Georgia', serif;
+            background-color: var(--bg-deep);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            transition: background 1.2s ease
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(107, 63, 160, .18) 0%, transparent 60%), radial-gradient(ellipse 60% 40% at 90% 90%, rgba(192, 57, 43, .10) 0%, transparent 50%);
+            pointer-events: none
+        }
+
+        body.night-mode {
+            background-color: #080610
+        }
+
+        body.night-mode::before {
+            background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(192, 57, 43, .25) 0%, transparent 60%), radial-gradient(ellipse 50% 50% at 10% 100%, rgba(107, 63, 160, .15) 0%, transparent 50%)
+        }
+
+        body.day-mode {
+            background-color: #111820
+        }
+
+        body.day-mode::before {
+            background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(201, 150, 58, .20) 0%, transparent 60%), radial-gradient(ellipse 50% 40% at 100% 80%, rgba(39, 105, 74, .12) 0%, transparent 50%)
+        }
 
         /* Lang */
-        #langSwitcher{position:fixed;top:12px;right:12px;z-index:5000;display:flex;gap:4px}
-        .lang-btn{padding:5px 10px;font-size:.75rem;letter-spacing:.05em;background:var(--bg-panel);border:1px solid var(--border);border-radius:20px;color:var(--text-muted);cursor:pointer;font-family:'Crimson Text',serif;transition:border-color .2s,color .2s,background .2s}
-        .lang-btn:hover{border-color:var(--purple);color:var(--purple-light)}
-        .lang-btn.active{border-color:var(--gold);color:var(--gold-light);background:rgba(201,150,58,.1)}
+        #langSwitcher {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            z-index: 5000;
+            display: flex;
+            gap: 4px
+        }
+
+        .lang-btn {
+            padding: 5px 10px;
+            font-size: .75rem;
+            letter-spacing: .05em;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-family: 'Crimson Text', serif;
+            transition: border-color .2s, color .2s, background .2s
+        }
+
+        .lang-btn:hover {
+            border-color: var(--purple);
+            color: var(--purple-light)
+        }
+
+        .lang-btn.active {
+            border-color: var(--gold);
+            color: var(--gold-light);
+            background: rgba(201, 150, 58, .1)
+        }
 
         /* Layout */
-        #app{position:relative;z-index:1;max-width:520px;margin:0 auto;padding:16px 12px 80px}
-        .gothic{font-family:'UnifrakturMaguntia',cursive}
+        #app {
+            position: relative;
+            z-index: 1;
+            max-width: 520px;
+            margin: 0 auto;
+            padding: 16px 12px 80px
+        }
+
+        .gothic {
+            font-family: 'UnifrakturMaguntia', cursive
+        }
 
         /* Panel */
-        .panel{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;position:relative;overflow:hidden}
-        .panel::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--border-glow),transparent);opacity:.5}
-        .panel-title{font-size:.75rem;letter-spacing:.15em;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px}
+        .panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 12px;
+            position: relative;
+            overflow: hidden
+        }
+
+        .panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border-glow), transparent);
+            opacity: .5
+        }
+
+        .panel-title {
+            font-size: .75rem;
+            letter-spacing: .15em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 12px
+        }
 
         /* Setup */
-        #setup{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px}
-        .logo-title{font-size:clamp(2.8rem,11vw,4.5rem);color:var(--gold-light);text-shadow:0 0 30px rgba(201,150,58,.5),0 0 60px rgba(201,150,58,.2);line-height:1;margin-bottom:4px;animation:flicker 6s ease-in-out infinite}
-        .logo-sub{font-size:.85rem;color:var(--text-muted);letter-spacing:.25em;margin-bottom:6px;text-transform:uppercase}
-        .logo-sub-alt{font-size:.75rem;color:var(--text-ghost);letter-spacing:.15em;margin-bottom:36px;font-style:italic;font-family:'IM Fell English',serif}
-        @keyframes flicker{0%,100%{opacity:1;text-shadow:0 0 30px rgba(201,150,58,.5),0 0 60px rgba(201,150,58,.2)}92%{opacity:1}93%{opacity:.7}94%{opacity:1}96%{opacity:.85}97%{opacity:1}}
-        .setup-card{width:100%;max-width:360px;background:var(--bg-panel);border:1px solid var(--border);border-radius:14px;padding:28px 24px;position:relative}
-        .setup-card::after{content:'';position:absolute;inset:0;border-radius:14px;background:linear-gradient(135deg,rgba(107,63,160,.05),transparent 50%,rgba(192,57,43,.05));pointer-events:none}
-        .field-label{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;display:block}
-        .text-input{width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-family:'Crimson Text',serif;font-size:1.05rem;padding:11px 14px;outline:none;transition:border-color .2s,box-shadow .2s;margin-bottom:16px}
-        .text-input:focus{border-color:var(--purple);box-shadow:0 0 0 3px rgba(107,63,160,.2)}
-        .text-input::placeholder{color:var(--text-ghost)}
+        #setup {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px
+        }
+
+        .logo-title {
+            font-size: clamp(2.8rem, 11vw, 4.5rem);
+            color: var(--gold-light);
+            text-shadow: 0 0 30px rgba(201, 150, 58, .5), 0 0 60px rgba(201, 150, 58, .2);
+            line-height: 1;
+            margin-bottom: 4px;
+            animation: flicker 6s ease-in-out infinite
+        }
+
+        .logo-sub {
+            font-size: .85rem;
+            color: var(--text-muted);
+            letter-spacing: .25em;
+            margin-bottom: 6px;
+            text-transform: uppercase
+        }
+
+        .logo-sub-alt {
+            font-size: .75rem;
+            color: var(--text-ghost);
+            letter-spacing: .15em;
+            margin-bottom: 36px;
+            font-style: italic;
+            font-family: 'IM Fell English', serif
+        }
+
+        @keyframes flicker {
+
+            0%,
+            100% {
+                opacity: 1;
+                text-shadow: 0 0 30px rgba(201, 150, 58, .5), 0 0 60px rgba(201, 150, 58, .2)
+            }
+
+            92% {
+                opacity: 1
+            }
+
+            93% {
+                opacity: .7
+            }
+
+            94% {
+                opacity: 1
+            }
+
+            96% {
+                opacity: .85
+            }
+
+            97% {
+                opacity: 1
+            }
+        }
+
+        .setup-card {
+            width: 100%;
+            max-width: 360px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 28px 24px;
+            position: relative
+        }
+
+        .setup-card::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 14px;
+            background: linear-gradient(135deg, rgba(107, 63, 160, .05), transparent 50%, rgba(192, 57, 43, .05));
+            pointer-events: none
+        }
+
+        .field-label {
+            font-size: .72rem;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            display: block
+        }
+
+        .text-input {
+            width: 100%;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'Crimson Text', serif;
+            font-size: 1.05rem;
+            padding: 11px 14px;
+            outline: none;
+            transition: border-color .2s, box-shadow .2s;
+            margin-bottom: 16px
+        }
+
+        .text-input:focus {
+            border-color: var(--purple);
+            box-shadow: 0 0 0 3px rgba(107, 63, 160, .2)
+        }
+
+        .text-input::placeholder {
+            color: var(--text-ghost)
+        }
 
         /* Buttons */
-        .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;border-radius:8px;cursor:pointer;font-family:'Crimson Text',serif;font-weight:600;transition:transform .1s,opacity .2s,box-shadow .2s;letter-spacing:.03em}
-        .btn:active{transform:scale(.97)}
-        .btn:disabled{opacity:.4;cursor:not-allowed}
-        .btn-primary{width:100%;padding:14px;font-size:1.1rem;background:linear-gradient(135deg,#7c4dbd,#9b3a3a);color:white;box-shadow:0 4px 20px rgba(107,63,160,.3)}
-        .btn-primary:hover:not(:disabled){box-shadow:0 4px 28px rgba(107,63,160,.5);opacity:.92}
-        .btn-danger{background:var(--red);color:white;padding:5px 10px;font-size:.85rem}
-        .btn-success{background:var(--green);color:white;padding:5px 10px;font-size:.85rem}
-        .btn-blue{background:var(--blue);color:white;padding:5px 10px;font-size:.85rem}
-        .btn-purple{background:var(--purple);color:white;padding:5px 10px;font-size:.85rem}
-        .btn-gold{background:#7a5c1e;color:var(--gold-light);padding:5px 10px;font-size:.85rem;border:1px solid var(--gold)}
-        .btn-ghost{background:rgba(255,255,255,.06);color:var(--text-muted);padding:5px 10px;font-size:.8rem;border:1px solid var(--border)}
-        .btn-orange{background:#8a3d10;color:#f0a060;padding:5px 10px;font-size:.85rem;border:1px solid #c05a20}
-        .btn-danger:hover:not(:disabled){background:var(--red-glow)}
-        .btn-success:hover:not(:disabled){background:var(--green-light)}
-        .btn-blue:hover:not(:disabled){background:var(--blue-light)}
-        .btn-purple:hover:not(:disabled){background:var(--purple-light)}
-        .btn-orange:hover:not(:disabled){background:#b05020}
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Crimson Text', serif;
+            font-weight: 600;
+            transition: transform .1s, opacity .2s, box-shadow .2s;
+            letter-spacing: .03em
+        }
+
+        .btn:active {
+            transform: scale(.97)
+        }
+
+        .btn:disabled {
+            opacity: .4;
+            cursor: not-allowed
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            font-size: 1.1rem;
+            background: linear-gradient(135deg, #7c4dbd, #9b3a3a);
+            color: white;
+            box-shadow: 0 4px 20px rgba(107, 63, 160, .3)
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            box-shadow: 0 4px 28px rgba(107, 63, 160, .5);
+            opacity: .92
+        }
+
+        .btn-danger {
+            background: var(--red);
+            color: white;
+            padding: 5px 10px;
+            font-size: .85rem
+        }
+
+        .btn-success {
+            background: var(--green);
+            color: white;
+            padding: 5px 10px;
+            font-size: .85rem
+        }
+
+        .btn-blue {
+            background: var(--blue);
+            color: white;
+            padding: 5px 10px;
+            font-size: .85rem
+        }
+
+        .btn-purple {
+            background: var(--purple);
+            color: white;
+            padding: 5px 10px;
+            font-size: .85rem
+        }
+
+        .btn-gold {
+            background: #7a5c1e;
+            color: var(--gold-light);
+            padding: 5px 10px;
+            font-size: .85rem;
+            border: 1px solid var(--gold)
+        }
+
+        .btn-ghost {
+            background: rgba(255, 255, 255, .06);
+            color: var(--text-muted);
+            padding: 5px 10px;
+            font-size: .8rem;
+            border: 1px solid var(--border)
+        }
+
+        .btn-orange {
+            background: #8a3d10;
+            color: #f0a060;
+            padding: 5px 10px;
+            font-size: .85rem;
+            border: 1px solid #c05a20
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: var(--red-glow)
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background: var(--green-light)
+        }
+
+        .btn-blue:hover:not(:disabled) {
+            background: var(--blue-light)
+        }
+
+        .btn-purple:hover:not(:disabled) {
+            background: var(--purple-light)
+        }
+
+        .btn-orange:hover:not(:disabled) {
+            background: #b05020
+        }
 
         /* Status Bar */
-        #statusBar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px}
-        #phaseTag{font-size:.78rem;letter-spacing:.1em;text-transform:uppercase;padding:4px 12px;border-radius:20px;background:rgba(107,63,160,.2);border:1px solid var(--purple);color:var(--purple-light);transition:all .5s ease}
-        #phaseTag.phase-night{background:rgba(192,57,43,.15);border-color:var(--red);color:#e07070}
-        #phaseTag.phase-day{background:rgba(201,150,58,.15);border-color:var(--gold);color:var(--gold-light)}
-        #timerBox{font-family:'IM Fell English',serif;font-size:2rem;font-weight:bold;min-width:70px;text-align:right;transition:color .5s}
-        #timerBox.night-timer{color:var(--red-glow);text-shadow:0 0 12px rgba(231,76,60,.5)}
-        #timerBox.day-timer{color:var(--gold-light);text-shadow:0 0 12px rgba(201,150,58,.4)}
+        #statusBar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            gap: 8px
+        }
+
+        #phaseTag {
+            font-size: .78rem;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            padding: 4px 12px;
+            border-radius: 20px;
+            background: rgba(107, 63, 160, .2);
+            border: 1px solid var(--purple);
+            color: var(--purple-light);
+            transition: all .5s ease
+        }
+
+        #phaseTag.phase-night {
+            background: rgba(192, 57, 43, .15);
+            border-color: var(--red);
+            color: #e07070
+        }
+
+        #phaseTag.phase-day {
+            background: rgba(201, 150, 58, .15);
+            border-color: var(--gold);
+            color: var(--gold-light)
+        }
+
+        #timerBox {
+            font-family: 'IM Fell English', serif;
+            font-size: 2rem;
+            font-weight: bold;
+            min-width: 70px;
+            text-align: right;
+            transition: color .5s
+        }
+
+        #timerBox.night-timer {
+            color: var(--red-glow);
+            text-shadow: 0 0 12px rgba(231, 76, 60, .5)
+        }
+
+        #timerBox.day-timer {
+            color: var(--gold-light);
+            text-shadow: 0 0 12px rgba(201, 150, 58, .4)
+        }
 
         /* Role Banner */
-        #roleBanner{text-align:center;padding:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;overflow:hidden}
-        #roleBanner.role-wolf{border-color:var(--red);background:rgba(192,57,43,.08)}
-        #roleBanner.role-witch{border-color:var(--purple);background:rgba(107,63,160,.08)}
-        #roleBanner.role-seer{border-color:var(--blue);background:rgba(29,78,122,.10)}
-        #roleBanner.role-hunter{border-color:var(--gold);background:rgba(201,150,58,.08)}
-        #roleBanner.role-guard{border-color:#2e7d32;background:rgba(46,125,50,.08)}
-        #roleBanner.role-idiot{border-color:#6d4c41;background:rgba(109,76,65,.08)}
-        #roleLabel{font-size:.68rem;letter-spacing:.15em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px}
-        #roleText{font-family:'IM Fell English',serif;font-style:italic;font-size:1.5rem}
-        #roleText.wolf-color{color:var(--red-glow)}
-        #roleText.witch-color{color:var(--purple-light)}
-        #roleText.seer-color{color:var(--blue-light)}
-        #roleText.hunter-color{color:var(--gold-light)}
-        #roleText.guard-color{color:#81c784}
-        #roleText.idiot-color{color:#bcaaa4}
-        #roleText.good-color{color:var(--green-light)}
-        #nightNotice{font-size:.88rem;color:var(--gold);min-height:20px;margin-top:6px;font-style:italic}
+        #roleBanner {
+            text-align: center;
+            padding: 14px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            margin-bottom: 12px;
+            overflow: hidden
+        }
+
+        #roleBanner.role-wolf {
+            border-color: var(--red);
+            background: rgba(192, 57, 43, .08)
+        }
+
+        #roleBanner.role-witch {
+            border-color: var(--purple);
+            background: rgba(107, 63, 160, .08)
+        }
+
+        #roleBanner.role-seer {
+            border-color: var(--blue);
+            background: rgba(29, 78, 122, .10)
+        }
+
+        #roleBanner.role-hunter {
+            border-color: var(--gold);
+            background: rgba(201, 150, 58, .08)
+        }
+
+        #roleBanner.role-guard {
+            border-color: #2e7d32;
+            background: rgba(46, 125, 50, .08)
+        }
+
+        #roleBanner.role-idiot {
+            border-color: #6d4c41;
+            background: rgba(109, 76, 65, .08)
+        }
+
+        #roleLabel {
+            font-size: .68rem;
+            letter-spacing: .15em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 4px
+        }
+
+        #roleText {
+            font-family: 'IM Fell English', serif;
+            font-style: italic;
+            font-size: 1.5rem
+        }
+
+        #roleText.wolf-color {
+            color: var(--red-glow)
+        }
+
+        #roleText.witch-color {
+            color: var(--purple-light)
+        }
+
+        #roleText.seer-color {
+            color: var(--blue-light)
+        }
+
+        #roleText.hunter-color {
+            color: var(--gold-light)
+        }
+
+        #roleText.guard-color {
+            color: #81c784
+        }
+
+        #roleText.idiot-color {
+            color: #bcaaa4
+        }
+
+        #roleText.good-color {
+            color: var(--green-light)
+        }
+
+        #nightNotice {
+            font-size: .88rem;
+            color: var(--gold);
+            min-height: 20px;
+            margin-top: 6px;
+            font-style: italic
+        }
 
         /* Role Config Panel */
-        #roleConfigPanel{background:rgba(107,63,160,.05);border-color:rgba(107,63,160,.3)}
-        .role-cfg-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-        .role-cfg-row{display:flex;align-items:center;justify-content:space-between;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:8px 10px}
-        .role-cfg-name{font-size:.9rem;color:var(--text-primary)}
-        .role-cfg-ctrl{display:flex;align-items:center;gap:6px}
-        .cfg-btn{width:24px;height:24px;border:1px solid var(--border);background:var(--bg-panel);color:var(--text-muted);border-radius:6px;cursor:pointer;font-size:.9rem;display:flex;align-items:center;justify-content:center;transition:border-color .2s,color .2s}
-        .cfg-btn:hover{border-color:var(--purple);color:var(--purple-light)}
-        .cfg-count{min-width:18px;text-align:center;font-size:.95rem;color:var(--text-primary)}
-        .cfg-total{font-size:.8rem;color:var(--text-muted);margin-bottom:8px;text-align:right}
-        .cfg-total span{color:var(--gold-light);font-weight:600}
+        #roleConfigPanel {
+            background: rgba(107, 63, 160, .05);
+            border-color: rgba(107, 63, 160, .3)
+        }
+
+        .role-cfg-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px
+        }
+
+        .role-cfg-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 10px
+        }
+
+        .role-cfg-name {
+            font-size: .9rem;
+            color: var(--text-primary)
+        }
+
+        .role-cfg-ctrl {
+            display: flex;
+            align-items: center;
+            gap: 6px
+        }
+
+        .cfg-btn {
+            width: 24px;
+            height: 24px;
+            border: 1px solid var(--border);
+            background: var(--bg-panel);
+            color: var(--text-muted);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: .9rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: border-color .2s, color .2s
+        }
+
+        .cfg-btn:hover {
+            border-color: var(--purple);
+            color: var(--purple-light)
+        }
+
+        .cfg-count {
+            min-width: 18px;
+            text-align: center;
+            font-size: .95rem;
+            color: var(--text-primary)
+        }
+
+        .cfg-total {
+            font-size: .8rem;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            text-align: right
+        }
+
+        .cfg-total span {
+            color: var(--gold-light);
+            font-weight: 600
+        }
 
         /* Player List */
-        #playerList{display:flex;flex-direction:column;gap:6px}
-        .player-row{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;transition:border-color .2s,background .2s;animation:rowIn .25s ease forwards}
-        @keyframes rowIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-        .player-row.is-me{border-color:var(--blue);background:rgba(29,78,122,.12)}
-        .player-row.is-wolf-buddy{border-color:rgba(192,57,43,.5);background:rgba(192,57,43,.06)}
-        .player-row.dead{opacity:.35;filter:grayscale(.9)}
-        .player-row.is-voted{border-color:var(--gold);background:rgba(201,150,58,.08)}
-        .player-row.idiot-revealed{border-color:#6d4c41;background:rgba(109,76,65,.08)}
-        .player-avatar{width:34px;height:34px;border-radius:50%;background:var(--bg-panel);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
-        .player-name-wrap{flex:1;font-size:1rem;min-width:0}
-        .player-name-wrap .crown{color:var(--gold);margin-right:3px}
-        .player-name-wrap .me-tag{font-size:.72rem;color:var(--text-muted);margin-left:4px}
-        .skull-icon{font-size:.85rem;margin-left:4px;opacity:.6}
-        .player-badges{display:flex;gap:4px;align-items:center;flex-shrink:0}
-        .wolf-dot{width:9px;height:9px;border-radius:50%;background:var(--red);border:1px solid rgba(255,255,255,.3);transition:box-shadow .3s}
-        .wolf-dot.confirmed{box-shadow:0 0 8px var(--gold-light);border-color:var(--gold-light)}
+        #playerList {
+            display: flex;
+            flex-direction: column;
+            gap: 6px
+        }
+
+        .player-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            transition: border-color .2s, background .2s;
+            animation: rowIn .25s ease forwards
+        }
+
+        @keyframes rowIn {
+            from {
+                opacity: 0;
+                transform: translateY(6px)
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0)
+            }
+        }
+
+        .player-row.is-me {
+            border-color: var(--blue);
+            background: rgba(29, 78, 122, .12)
+        }
+
+        .player-row.is-wolf-buddy {
+            border-color: rgba(192, 57, 43, .5);
+            background: rgba(192, 57, 43, .06)
+        }
+
+        .player-row.dead {
+            opacity: .35;
+            filter: grayscale(.9)
+        }
+
+        .player-row.is-voted {
+            border-color: var(--gold);
+            background: rgba(201, 150, 58, .08)
+        }
+
+        .player-row.idiot-revealed {
+            border-color: #6d4c41;
+            background: rgba(109, 76, 65, .08)
+        }
+
+        .player-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            flex-shrink: 0
+        }
+
+        .player-name-wrap {
+            flex: 1;
+            font-size: 1rem;
+            min-width: 0
+        }
+
+        .player-name-wrap .crown {
+            color: var(--gold);
+            margin-right: 3px
+        }
+
+        .player-name-wrap .me-tag {
+            font-size: .72rem;
+            color: var(--text-muted);
+            margin-left: 4px
+        }
+
+        .skull-icon {
+            font-size: .85rem;
+            margin-left: 4px;
+            opacity: .6
+        }
+
+        .player-badges {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+            flex-shrink: 0
+        }
+
+        .wolf-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--red);
+            border: 1px solid rgba(255, 255, 255, .3);
+            transition: box-shadow .3s
+        }
+
+        .wolf-dot.confirmed {
+            box-shadow: 0 0 8px var(--gold-light);
+            border-color: var(--gold-light)
+        }
+
         /* Vote count badge */
-        .vote-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:10px;font-size:.72rem;font-weight:600;padding:0 5px;background:rgba(201,150,58,.2);border:1px solid rgba(201,150,58,.4);color:var(--gold-light)}
-        .vote-count.my-vote{background:rgba(201,150,58,.35);border-color:var(--gold-light)}
-        .player-actions{display:flex;gap:4px;flex-shrink:0}
+        .vote-count {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 20px;
+            height: 20px;
+            border-radius: 10px;
+            font-size: .72rem;
+            font-weight: 600;
+            padding: 0 5px;
+            background: rgba(201, 150, 58, .2);
+            border: 1px solid rgba(201, 150, 58, .4);
+            color: var(--gold-light)
+        }
+
+        .vote-count.my-vote {
+            background: rgba(201, 150, 58, .35);
+            border-color: var(--gold-light)
+        }
+
+        .player-actions {
+            display: flex;
+            gap: 4px;
+            flex-shrink: 0
+        }
 
         /* Wolf Confirm */
-        #wolfConfirmBtn{width:100%;margin-top:10px;padding:13px;font-size:1rem;font-family:'Crimson Text',serif;font-weight:600;border:none;border-radius:8px;cursor:pointer;background:linear-gradient(135deg,#7a1515,#c0392b);color:white;box-shadow:0 4px 16px rgba(192,57,43,.3);transition:opacity .2s,transform .1s,box-shadow .2s}
-        #wolfConfirmBtn:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
-        #wolfConfirmBtn:not(:disabled):hover{box-shadow:0 4px 24px rgba(192,57,43,.5)}
-        #wolfConfirmBtn:active{transform:scale(.97)}
+        #wolfConfirmBtn {
+            width: 100%;
+            margin-top: 10px;
+            padding: 13px;
+            font-size: 1rem;
+            font-family: 'Crimson Text', serif;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: linear-gradient(135deg, #7a1515, #c0392b);
+            color: white;
+            box-shadow: 0 4px 16px rgba(192, 57, 43, .3);
+            transition: opacity .2s, transform .1s, box-shadow .2s
+        }
+
+        #wolfConfirmBtn:disabled {
+            opacity: .4;
+            cursor: not-allowed;
+            box-shadow: none
+        }
+
+        #wolfConfirmBtn:not(:disabled):hover {
+            box-shadow: 0 4px 24px rgba(192, 57, 43, .5)
+        }
+
+        #wolfConfirmBtn:active {
+            transform: scale(.97)
+        }
 
         /* Skip */
-        #skipBtn{width:100%;background:rgba(52,152,219,.12);border:1px solid var(--blue-light);color:var(--blue-light);padding:12px;font-size:.95rem;border-radius:8px;cursor:pointer;font-family:'Crimson Text',serif;font-weight:600;transition:background .2s,box-shadow .2s}
-        #skipBtn:hover{background:rgba(52,152,219,.22);box-shadow:0 0 12px rgba(52,152,219,.3)}
+        #skipBtn {
+            width: 100%;
+            background: rgba(52, 152, 219, .12);
+            border: 1px solid var(--blue-light);
+            color: var(--blue-light);
+            padding: 12px;
+            font-size: .95rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Crimson Text', serif;
+            font-weight: 600;
+            transition: background .2s, box-shadow .2s
+        }
+
+        #skipBtn:hover {
+            background: rgba(52, 152, 219, .22);
+            box-shadow: 0 0 12px rgba(52, 152, 219, .3)
+        }
 
         /* Hunter shooting */
-        #hunterPanel{background:rgba(201,150,58,.05);border-color:rgba(201,150,58,.35)}
-        #hunterPanel .panel-title{color:var(--gold)}
+        #hunterPanel {
+            background: rgba(201, 150, 58, .05);
+            border-color: rgba(201, 150, 58, .35)
+        }
+
+        #hunterPanel .panel-title {
+            color: var(--gold)
+        }
 
         /* Host Controls */
-        #startBtn{flex:1;padding:13px;background:linear-gradient(135deg,#1a5e34,#27ae60);border:none;border-radius:8px;cursor:pointer;color:white;font-family:'Crimson Text',serif;font-size:1.05rem;font-weight:600;box-shadow:0 4px 16px rgba(39,174,96,.3);transition:opacity .2s,box-shadow .2s}
-        #startBtn:hover{opacity:.9;box-shadow:0 4px 24px rgba(39,174,96,.5)}
-        #addBotsBtn{padding:13px 16px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:8px;cursor:pointer;color:var(--text-muted);font-family:'Crimson Text',serif;font-size:.9rem;transition:border-color .2s,color .2s}
-        #addBotsBtn:hover{border-color:var(--purple);color:var(--purple-light)}
+        #startBtn {
+            flex: 1;
+            padding: 13px;
+            background: linear-gradient(135deg, #1a5e34, #27ae60);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            color: white;
+            font-family: 'Crimson Text', serif;
+            font-size: 1.05rem;
+            font-weight: 600;
+            box-shadow: 0 4px 16px rgba(39, 174, 96, .3);
+            transition: opacity .2s, box-shadow .2s
+        }
+
+        #startBtn:hover {
+            opacity: .9;
+            box-shadow: 0 4px 24px rgba(39, 174, 96, .5)
+        }
+
+        #addBotsBtn {
+            padding: 13px 16px;
+            background: rgba(255, 255, 255, .05);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            color: var(--text-muted);
+            font-family: 'Crimson Text', serif;
+            font-size: .9rem;
+            transition: border-color .2s, color .2s
+        }
+
+        #addBotsBtn:hover {
+            border-color: var(--purple);
+            color: var(--purple-light)
+        }
 
         /* Wolf chat */
-        #wolfSection{border-color:rgba(192,57,43,.4);background:rgba(192,57,43,.04)}
-        #wolfSection .panel-title{color:#c07070}
+        #wolfSection {
+            border-color: rgba(192, 57, 43, .4);
+            background: rgba(192, 57, 43, .04)
+        }
+
+        #wolfSection .panel-title {
+            color: #c07070
+        }
 
         /* Chat */
-        .chat-area{height:130px;overflow-y:auto;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:.9rem;line-height:1.55;margin-bottom:8px;scroll-behavior:smooth}
-        .chat-area::-webkit-scrollbar{width:4px}
-        .chat-area::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-        .chat-msg{margin-bottom:4px}
-        .chat-name{font-weight:600;margin-right:4px}
-        .chat-name.system-name{color:var(--gold);font-style:italic}
-        .chat-name.wolf-name{color:var(--red-glow)}
-        .chat-name.player-name-c{color:var(--blue-light)}
-        .chat-row{display:flex;gap:6px}
-        .chat-input{flex:1;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-family:'Crimson Text',serif;font-size:1rem;padding:9px 12px;outline:none;transition:border-color .2s}
-        .chat-input:focus{border-color:var(--purple)}
-        .chat-input::placeholder{color:var(--text-ghost)}
-        .chat-send{padding:9px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;cursor:pointer;color:var(--text-muted);font-size:1rem;transition:border-color .2s,color .2s}
-        .chat-send:hover{border-color:var(--purple);color:var(--purple-light)}
+        .chat-area {
+            height: 130px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, .3);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: .9rem;
+            line-height: 1.55;
+            margin-bottom: 8px;
+            scroll-behavior: smooth
+        }
+
+        .chat-area::-webkit-scrollbar {
+            width: 4px
+        }
+
+        .chat-area::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 2px
+        }
+
+        .chat-msg {
+            margin-bottom: 4px
+        }
+
+        .chat-name {
+            font-weight: 600;
+            margin-right: 4px
+        }
+
+        .chat-name.system-name {
+            color: var(--gold);
+            font-style: italic
+        }
+
+        .chat-name.wolf-name {
+            color: var(--red-glow)
+        }
+
+        .chat-name.player-name-c {
+            color: var(--blue-light)
+        }
+
+        .chat-row {
+            display: flex;
+            gap: 6px
+        }
+
+        .chat-input {
+            flex: 1;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'Crimson Text', serif;
+            font-size: 1rem;
+            padding: 9px 12px;
+            outline: none;
+            transition: border-color .2s
+        }
+
+        .chat-input:focus {
+            border-color: var(--purple)
+        }
+
+        .chat-input::placeholder {
+            color: var(--text-ghost)
+        }
+
+        .chat-send {
+            padding: 9px 14px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            color: var(--text-muted);
+            font-size: 1rem;
+            transition: border-color .2s, color .2s
+        }
+
+        .chat-send:hover {
+            border-color: var(--purple);
+            color: var(--purple-light)
+        }
 
         /* Toast */
-        #toastContainer{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9000;display:flex;flex-direction:column-reverse;align-items:center;gap:8px;pointer-events:none;width:calc(100% - 32px);max-width:400px}
-        .toast{width:100%;background:var(--bg-panel);border:1px solid var(--border);border-radius:10px;padding:12px 16px;font-size:.92rem;line-height:1.4;box-shadow:0 8px 32px rgba(0,0,0,.5);animation:toastIn .3s ease forwards;pointer-events:auto}
-        @keyframes toastIn{from{opacity:0;transform:translateY(12px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
-        .toast.out{animation:toastOut .3s ease forwards}
-        @keyframes toastOut{to{opacity:0;transform:translateY(8px) scale(.96)}}
-        .toast-error{border-color:var(--red);background:rgba(192,57,43,.15);color:#f0a0a0}
-        .toast-success{border-color:#27694a;background:rgba(39,105,74,.15);color:#80e0a0}
-        .toast-info{border-color:var(--purple);background:rgba(107,63,160,.15);color:#c0a0e0}
-        .toast-warn{border-color:var(--gold);background:rgba(201,150,58,.15);color:var(--gold-light)}
+        #toastContainer {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9000;
+            display: flex;
+            flex-direction: column-reverse;
+            align-items: center;
+            gap: 8px;
+            pointer-events: none;
+            width: calc(100% - 32px);
+            max-width: 400px
+        }
+
+        .toast {
+            width: 100%;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 16px;
+            font-size: .92rem;
+            line-height: 1.4;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, .5);
+            animation: toastIn .3s ease forwards;
+            pointer-events: auto
+        }
+
+        @keyframes toastIn {
+            from {
+                opacity: 0;
+                transform: translateY(12px) scale(.96)
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1)
+            }
+        }
+
+        .toast.out {
+            animation: toastOut .3s ease forwards
+        }
+
+        @keyframes toastOut {
+            to {
+                opacity: 0;
+                transform: translateY(8px) scale(.96)
+            }
+        }
+
+        .toast-error {
+            border-color: var(--red);
+            background: rgba(192, 57, 43, .15);
+            color: #f0a0a0
+        }
+
+        .toast-success {
+            border-color: #27694a;
+            background: rgba(39, 105, 74, .15);
+            color: #80e0a0
+        }
+
+        .toast-info {
+            border-color: var(--purple);
+            background: rgba(107, 63, 160, .15);
+            color: #c0a0e0
+        }
+
+        .toast-warn {
+            border-color: var(--gold);
+            background: rgba(201, 150, 58, .15);
+            color: var(--gold-light)
+        }
 
         /* Modal */
-        #modalOverlay{position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .25s ease}
-        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-        #modalOverlay.hidden{display:none}
-        .modal-card{background:var(--bg-panel);border:1px solid var(--border);border-radius:16px;padding:28px 24px;max-width:340px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6);animation:modalIn .3s cubic-bezier(.34,1.56,.64,1) forwards}
-        @keyframes modalIn{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
-        .modal-icon{font-size:3rem;margin-bottom:10px}
-        .modal-title{font-family:'IM Fell English',serif;font-style:italic;font-size:1.6rem;color:var(--gold-light);margin-bottom:8px}
-        .modal-body{color:var(--text-muted);font-size:.95rem;margin-bottom:20px;line-height:1.5;white-space:pre-line}
-        .modal-btn{width:100%;padding:13px;background:linear-gradient(135deg,var(--purple),#9b3a3a);border:none;border-radius:8px;cursor:pointer;color:white;font-family:'Crimson Text',serif;font-size:1.05rem;font-weight:600;transition:opacity .2s}
-        .modal-btn:hover{opacity:.88}
+        #modalOverlay {
+            position: fixed;
+            inset: 0;
+            z-index: 8000;
+            background: rgba(0, 0, 0, .75);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            animation: fadeIn .25s ease
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0
+            }
+
+            to {
+                opacity: 1
+            }
+        }
+
+        #modalOverlay.hidden {
+            display: none
+        }
+
+        .modal-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px 24px;
+            max-width: 340px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, .6);
+            animation: modalIn .3s cubic-bezier(.34, 1.56, .64, 1) forwards
+        }
+
+        @keyframes modalIn {
+            from {
+                opacity: 0;
+                transform: scale(.85)
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1)
+            }
+        }
+
+        .modal-icon {
+            font-size: 3rem;
+            margin-bottom: 10px
+        }
+
+        .modal-title {
+            font-family: 'IM Fell English', serif;
+            font-style: italic;
+            font-size: 1.6rem;
+            color: var(--gold-light);
+            margin-bottom: 8px
+        }
+
+        .modal-body {
+            color: var(--text-muted);
+            font-size: .95rem;
+            margin-bottom: 20px;
+            line-height: 1.5;
+            white-space: pre-line
+        }
+
+        .modal-btn {
+            width: 100%;
+            padding: 13px;
+            background: linear-gradient(135deg, var(--purple), #9b3a3a);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            color: white;
+            font-family: 'Crimson Text', serif;
+            font-size: 1.05rem;
+            font-weight: 600;
+            transition: opacity .2s
+        }
+
+        .modal-btn:hover {
+            opacity: .88
+        }
 
         /* Utility */
-        .hidden{display:none!important}
-        .flex-between{display:flex;justify-content:space-between;align-items:center}
-        .mt-8{margin-top:8px}
-        .text-muted{color:var(--text-muted);font-size:.85rem}
+        .hidden {
+            display: none !important
+        }
+
+        .flex-between {
+            display: flex;
+            justify-content: space-between;
+            align-items: center
+        }
+
+        .mt-8 {
+            margin-top: 8px
+        }
+
+        .text-muted {
+            color: var(--text-muted);
+            font-size: .85rem
+        }
 
         /* Death Flash */
-        #deathFlash{position:fixed;inset:0;z-index:7000;background:rgba(192,57,43,.25);pointer-events:none;opacity:0}
-        #deathFlash.active{animation:deathPulse 1.5s ease forwards}
-        @keyframes deathPulse{0%{opacity:0}20%{opacity:1}100%{opacity:0}}
+        #deathFlash {
+            position: fixed;
+            inset: 0;
+            z-index: 7000;
+            background: rgba(192, 57, 43, .25);
+            pointer-events: none;
+            opacity: 0
+        }
+
+        #deathFlash.active {
+            animation: deathPulse 1.5s ease forwards
+        }
+
+        @keyframes deathPulse {
+            0% {
+                opacity: 0
+            }
+
+            20% {
+                opacity: 1
+            }
+
+            100% {
+                opacity: 0
+            }
+        }
     </style>
 </head>
+
 <body>
 
-<div id="langSwitcher">
-    <button class="lang-btn active" onclick="setLang('zh')">中</button>
-    <button class="lang-btn" onclick="setLang('ja')">日</button>
-    <button class="lang-btn" onclick="setLang('en')">EN</button>
-</div>
-
-<!-- Setup -->
-<div id="setup">
-    <div class="gothic logo-title">狼人殺</div>
-    <div class="logo-sub" id="logoSub">Werewolf · 連線版</div>
-    <div class="logo-sub-alt" id="logoSubAlt">人狼ゲーム · Online</div>
-    <div class="setup-card">
-        <label class="field-label" id="labelRoom" for="roomInput">房間號碼</label>
-        <input class="text-input" type="text" id="roomInput" autocomplete="off">
-        <label class="field-label" id="labelName" for="usernameInput">玩家暱稱</label>
-        <input class="text-input" type="text" id="usernameInput" autocomplete="off" onkeypress="if(event.key==='Enter')join()">
-        <button class="btn btn-primary" onclick="join()" id="joinBtn">⚔️ 進入村莊</button>
-    </div>
-</div>
-
-<!-- Game -->
-<div id="game" class="hidden">
-<div id="app">
-
-    <div id="statusBar">
-        <div id="phaseTag">等待開局</div>
-        <div id="timerBox" class="day-timer">—</div>
+    <div id="langSwitcher">
+        <button class="lang-btn active" onclick="setLang('zh')">中</button>
+        <button class="lang-btn" onclick="setLang('ja')">日</button>
+        <button class="lang-btn" onclick="setLang('en')">EN</button>
     </div>
 
-    <div id="roleBanner">
-        <div id="roleLabel">你的身分</div>
-        <div id="roleText">⏳ 等待發牌...</div>
-        <div id="nightNotice"></div>
-    </div>
-
-    <!-- Host Controls -->
-    <div id="hostControls" class="panel hidden">
-        <div class="panel-title" id="hostPanelTitle">房主控制</div>
-        <div style="display:flex;gap:8px;margin-bottom:10px">
-            <button id="startBtn" onclick="socket.emit('startGame')">⚔️ 正式開始遊戲</button>
-            <button id="addBotsBtn" onclick="fillBots()">🤖 補滿機器人</button>
-        </div>
-
-        <!-- Role Config -->
-        <div id="roleConfigPanel" class="panel" style="margin-bottom:0">
-            <div class="panel-title" id="cfgTitle">角色設定</div>
-            <div class="cfg-total" id="cfgTotal">總人數：<span id="cfgTotalNum">6</span></div>
-            <div class="role-cfg-grid" id="roleCfgGrid"></div>
+    <!-- Setup -->
+    <div id="setup">
+        <div class="gothic logo-title">狼人殺</div>
+        <div class="logo-sub" id="logoSub">Werewolf · 連線版</div>
+        <div class="logo-sub-alt" id="logoSubAlt">人狼ゲーム · Online</div>
+        <div class="setup-card">
+            <label class="field-label" id="labelRoom" for="roomInput">房間號碼</label>
+            <input class="text-input" type="text" id="roomInput" autocomplete="off">
+            <label class="field-label" id="labelName" for="usernameInput">玩家暱稱</label>
+            <input class="text-input" type="text" id="usernameInput" autocomplete="off"
+                onkeypress="if(event.key==='Enter')join()">
+            <button class="btn btn-primary" onclick="join()" id="joinBtn">⚔️ 進入村莊</button>
         </div>
     </div>
 
-    <!-- Hunter shooting panel -->
-    <div id="hunterPanel" class="panel hidden">
-        <div class="panel-title" id="hunterPanelTitle">🏹 獵人技能</div>
-        <div id="hunterMsg" style="font-size:.9rem;color:var(--gold);margin-bottom:10px"></div>
-    </div>
+    <!-- Game -->
+    <div id="game" class="hidden">
+        <div id="app">
 
-    <!-- Skip -->
-    <div id="skipWrapper" class="hidden mt-8">
-        <button id="skipBtn" onclick="socket.emit('castSkipVote')">⏭️ 我發言完了，準備投票</button>
-    </div>
+            <div id="statusBar">
+                <div id="phaseTag">等待開局</div>
+                <div id="timerBox" class="day-timer">—</div>
+            </div>
 
-    <!-- Players -->
-    <div class="panel">
-        <div class="flex-between" style="margin-bottom:10px">
-            <div class="panel-title" style="margin:0" id="playerListTitle">👥 玩家名單</div>
-            <div id="aliveCount" class="text-muted"></div>
+            <div id="roleBanner">
+                <div id="roleLabel">你的身分</div>
+                <div id="roleText">⏳ 等待發牌...</div>
+                <div id="nightNotice"></div>
+            </div>
+
+            <!-- Host Controls -->
+            <div id="hostControls" class="panel hidden">
+                <div class="panel-title" id="hostPanelTitle">房主控制</div>
+                <div style="display:flex;gap:8px;margin-bottom:10px">
+                    <button id="startBtn" onclick="socket.emit('startGame')">⚔️ 正式開始遊戲</button>
+                    <button id="addBotsBtn" onclick="fillBots()">🤖 補滿機器人</button>
+                </div>
+
+                <!-- Role Config -->
+                <div id="roleConfigPanel" class="panel" style="margin-bottom:0">
+                    <div class="panel-title" id="cfgTitle">角色設定</div>
+                    <div class="cfg-total" id="cfgTotal">總人數：<span id="cfgTotalNum">6</span></div>
+                    <div class="role-cfg-grid" id="roleCfgGrid"></div>
+                </div>
+            </div>
+
+            <!-- Hunter shooting panel -->
+            <div id="hunterPanel" class="panel hidden">
+                <div class="panel-title" id="hunterPanelTitle">🏹 獵人技能</div>
+                <div id="hunterMsg" style="font-size:.9rem;color:var(--gold);margin-bottom:10px"></div>
+            </div>
+
+            <!-- Skip -->
+            <div id="skipWrapper" class="hidden mt-8">
+                <button id="skipBtn" onclick="socket.emit('castSkipVote')">⏭️ 我發言完了，準備投票</button>
+            </div>
+
+            <!-- Players -->
+            <div class="panel">
+                <div class="flex-between" style="margin-bottom:10px">
+                    <div class="panel-title" style="margin:0" id="playerListTitle">👥 玩家名單</div>
+                    <div id="aliveCount" class="text-muted"></div>
+                </div>
+                <div id="playerList"></div>
+            </div>
+
+            <!-- Wolf Chat -->
+            <div id="wolfSection" class="panel hidden">
+                <div class="panel-title" id="wolfChatTitle">🐾 狼人私密頻道</div>
+                <div id="wolfChatBox" class="chat-area"></div>
+                <div class="chat-row">
+                    <input class="chat-input" type="text" id="wolfInput"
+                        onkeypress="if(event.key==='Enter')sendWolfChat()" style="border-color:rgba(192,57,43,.4)">
+                    <button class="chat-send" onclick="sendWolfChat()"
+                        style="border-color:rgba(192,57,43,.4)">↑</button>
+                </div>
+            </div>
+
+            <!-- Public Chat -->
+            <div class="panel">
+                <div class="panel-title" id="publicChatTitle">💬 公開討論</div>
+                <div id="chatBox" class="chat-area"></div>
+                <div class="chat-row">
+                    <input class="chat-input" type="text" id="chatInput" onkeypress="if(event.key==='Enter')sendChat()">
+                    <button class="chat-send" onclick="sendChat()">↑</button>
+                </div>
+            </div>
+
         </div>
-        <div id="playerList"></div>
     </div>
 
-    <!-- Wolf Chat -->
-    <div id="wolfSection" class="panel hidden">
-        <div class="panel-title" id="wolfChatTitle">🐾 狼人私密頻道</div>
-        <div id="wolfChatBox" class="chat-area"></div>
-        <div class="chat-row">
-            <input class="chat-input" type="text" id="wolfInput" onkeypress="if(event.key==='Enter')sendWolfChat()" style="border-color:rgba(192,57,43,.4)">
-            <button class="chat-send" onclick="sendWolfChat()" style="border-color:rgba(192,57,43,.4)">↑</button>
+    <div id="toastContainer"></div>
+
+    <div id="modalOverlay" class="hidden">
+        <div class="modal-card">
+            <div class="modal-icon" id="modalIcon">🐺</div>
+            <div class="modal-title" id="modalTitle">遊戲結束</div>
+            <div class="modal-body" id="modalBody"></div>
+            <button class="modal-btn" id="modalBtn" onclick="closeModal()">繼續</button>
         </div>
     </div>
 
-    <!-- Public Chat -->
-    <div class="panel">
-        <div class="panel-title" id="publicChatTitle">💬 公開討論</div>
-        <div id="chatBox" class="chat-area"></div>
-        <div class="chat-row">
-            <input class="chat-input" type="text" id="chatInput" onkeypress="if(event.key==='Enter')sendChat()">
-            <button class="chat-send" onclick="sendChat()">↑</button>
-        </div>
-    </div>
+    <div id="deathFlash"></div>
 
-</div>
-</div>
+    <script>
+        /* ── i18n ── */
+        const LANGS = {
+            zh: {
+                logoSub: 'Werewolf · 連線版', logoSubAlt: '人狼ゲーム · Online',
+                labelRoom: '房間號碼', labelName: '玩家暱稱',
+                roomPH: '輸入任意房號', namePH: '你的名字',
+                joinBtn: '⚔️ 進入村莊', hostPanelTitle: '房主控制',
+                startBtn: '⚔️ 正式開始遊戲', addBotsBtn: '🤖 補滿機器人',
+                skipBtn: '⏭️ 我發言完了，準備投票',
+                playerListTitle: '👥 玩家名單', wolfChatTitle: '🐾 狼人私密頻道',
+                wolfPH: '與同伴策劃...', publicChatTitle: '💬 公開討論', chatPH: '發言...',
+                roleLabel: '你的身分', roleWaiting: '⏳ 等待發牌...',
+                aliveCount: (a, t) => `存活 ${a}/${t}`, meTag: '(我)',
+                cfgTitle: '角色設定',
+                cfgTotalLabel: '總人數：',
+                phase: { waiting: '等待開局', night_guard: '守衛行動', night_wolf: '狼人行動', night_witch: '女巫行動', night_seer: '預言家查驗', day: '自由發言', voting: '投票放逐', hunter_shooting: '獵人技能' },
+                roles: { '狼人': '狼人', '預言家': '預言家', '女巫': '女巫', '獵人': '獵人', '白癡': '白癡', '守衛': '守衛', '村民': '村民' },
+                roleEmoji: { '狼人': '🐺', '預言家': '🔮', '女巫': '🧪', '獵人': '🏹', '白癡': '🃏', '守衛': '🛡️', '村民': '🧑' },
+                rolePrefix: '你的身分：',
+                wolfConfirmYes: '✅ 已確認殺害目標', wolfConfirmNo: '🔒 確定此殺害目標',
+                btnKill: '選', btnSave: '救', btnPoison: '毒', btnSeer: '驗', btnVote: '投', btnKick: '踢', btnGuard: '護', btnShoot: '射',
+                toastFillInput: '請輸入房號與暱稱', toastGameOver: '遊戲結束',
+                toastWinner: (w) => `贏家是：${w}\n\n房間仍保留，可繼續下一局。`,
+                toastNextRound: '繼續下一局', toastKicked: '你被移出房間',
+                toastKickedMsg: '房主已將你從本局遊戲中移出。', toastKickedBtn: '重新進入',
+                witchNotice: (n) => `🧪 系統通知：${n} 昨晚倒下了`,
+                hunterMsg: '你是獵人，請選擇帶走一名玩家！',
+                systemName: '系統',
+                cfgRoleNames: { wolf: '狼人', seer: '預言家', witch: '女巫', hunter: '獵人', idiot: '白癡', guard: '守衛', villager: '村民' },
+            },
+            ja: {
+                logoSub: 'Werewolf · オンライン', logoSubAlt: '狼人殺 · 連線版',
+                labelRoom: 'ルーム番号', labelName: 'プレイヤー名',
+                roomPH: 'ルーム番号を入力', namePH: 'ニックネーム',
+                joinBtn: '⚔️ 村に入る', hostPanelTitle: 'ホスト操作',
+                startBtn: '⚔️ ゲーム開始', addBotsBtn: '🤖 ボットを追加',
+                skipBtn: '⏭️ 発言完了・投票へ',
+                playerListTitle: '👥 プレイヤー一覧', wolfChatTitle: '🐾 人狼チャット',
+                wolfPH: '仲間と作戦を...', publicChatTitle: '💬 公開チャット', chatPH: '発言...',
+                roleLabel: 'あなたの役職', roleWaiting: '⏳ カード配布待ち...',
+                aliveCount: (a, t) => `生存 ${a}/${t}`, meTag: '(自分)',
+                cfgTitle: '役職設定',
+                cfgTotalLabel: '合計人数：',
+                phase: { waiting: '待機中', night_guard: '守衛の夜', night_wolf: '人狼の夜', night_witch: '魔女の夜', night_seer: '占い師の夜', day: '昼の議論', voting: '追放投票', hunter_shooting: '狩人の技' },
+                roles: { '狼人': '人狼', '預言家': '占い師', '女巫': '魔女', '獵人': '狩人', '白癡': '道化師', '守衛': '守衛', '村民': '村人' },
+                roleEmoji: { '狼人': '🐺', '預言家': '🔮', '女巫': '🧪', '獵人': '🏹', '白癡': '🃏', '守衛': '🛡️', '村民': '🧑' },
+                rolePrefix: '役職：',
+                wolfConfirmYes: '✅ 対象を確定済み', wolfConfirmNo: '🔒 この対象を確定する',
+                btnKill: '選', btnSave: '救', btnPoison: '毒', btnSeer: '占', btnVote: '票', btnKick: '除', btnGuard: '護', btnShoot: '射',
+                toastFillInput: 'ルーム番号とニックネームを入力してください', toastGameOver: 'ゲーム終了',
+                toastWinner: (w) => `勝者：${w}\n\n次のゲームへどうぞ。`,
+                toastNextRound: '次のゲームへ', toastKicked: '退出させられました',
+                toastKickedMsg: 'ホストにより退出させられました。', toastKickedBtn: '再入室',
+                witchNotice: (n) => `🧪 通知：${n} が昨夜倒れました`,
+                hunterMsg: 'あなたは狩人です。道連れにする相手を選んでください！',
+                systemName: 'システム',
+                cfgRoleNames: { wolf: '人狼', seer: '占い師', witch: '魔女', hunter: '狩人', idiot: '道化師', guard: '守衛', villager: '村人' },
+            },
+            en: {
+                logoSub: 'Werewolf · Online', logoSubAlt: '狼人殺 · 人狼ゲーム',
+                labelRoom: 'Room Code', labelName: 'Nickname',
+                roomPH: 'Enter room code', namePH: 'Your name',
+                joinBtn: '⚔️ Enter the Village', hostPanelTitle: 'Host Controls',
+                startBtn: '⚔️ Start Game', addBotsBtn: '🤖 Fill with Bots',
+                skipBtn: '⏭️ Done talking — go to vote',
+                playerListTitle: '👥 Players', wolfChatTitle: '🐾 Wolf Channel',
+                wolfPH: 'Plot with your pack...', publicChatTitle: '💬 Public Discussion', chatPH: 'Say something...',
+                roleLabel: 'Your Role', roleWaiting: '⏳ Waiting for cards...',
+                aliveCount: (a, t) => `Alive ${a}/${t}`, meTag: '(me)',
+                cfgTitle: 'Role Setup',
+                cfgTotalLabel: 'Total players: ',
+                phase: { waiting: 'Waiting', night_guard: 'Guard Phase', night_wolf: 'Wolf Phase', night_witch: 'Witch Phase', night_seer: 'Seer Phase', day: 'Discussion', voting: 'Voting', hunter_shooting: 'Hunter Ability' },
+                roles: { '狼人': 'Werewolf', '預言家': 'Seer', '女巫': 'Witch', '獵人': 'Hunter', '白癡': 'Jester', '守衛': 'Guard', '村民': 'Villager' },
+                roleEmoji: { '狼人': '🐺', '預言家': '🔮', '女巫': '🧪', '獵人': '🏹', '白癡': '🃏', '守衛': '🛡️', '村民': '🧑' },
+                rolePrefix: 'Your role: ',
+                wolfConfirmYes: '✅ Target Confirmed', wolfConfirmNo: '🔒 Confirm This Target',
+                btnKill: 'Kill', btnSave: 'Save', btnPoison: 'Poison', btnSeer: 'Check', btnVote: 'Vote', btnKick: 'Kick', btnGuard: 'Guard', btnShoot: 'Shoot',
+                toastFillInput: 'Please enter room code and nickname', toastGameOver: 'Game Over',
+                toastWinner: (w) => `Winner: ${w}\n\nRoom is kept — play another round!`,
+                toastNextRound: 'Next Round', toastKicked: 'You were removed',
+                toastKickedMsg: 'The host has removed you from this game.', toastKickedBtn: 'Rejoin',
+                witchNotice: (n) => `🧪 Notice: ${n} was killed last night`,
+                hunterMsg: 'You are the Hunter! Choose someone to take with you!',
+                systemName: 'System',
+                cfgRoleNames: { wolf: 'Werewolf', seer: 'Seer', witch: 'Witch', hunter: 'Hunter', idiot: 'Jester', guard: 'Guard', villager: 'Villager' },
+            },
+        };
 
-<div id="toastContainer"></div>
+        let currentLang = 'zh';
+        function L() { return LANGS[currentLang]; }
+        function setLang(l) {
+            currentLang = l;
+            document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+            document.querySelector(`.lang-btn[onclick="setLang('${l}')"]`).classList.add('active');
+            applyLang();
+        }
+        function applyLang() {
+            const l = L();
+            const $ = id => document.getElementById(id);
+            $('logoSub').textContent = l.logoSub; $('logoSubAlt').textContent = l.logoSubAlt;
+            $('labelRoom').textContent = l.labelRoom; $('labelName').textContent = l.labelName;
+            $('roomInput').placeholder = l.roomPH; $('usernameInput').placeholder = l.namePH;
+            $('joinBtn').textContent = l.joinBtn; $('hostPanelTitle').textContent = l.hostPanelTitle;
+            $('startBtn').textContent = l.startBtn; $('addBotsBtn').textContent = l.addBotsBtn;
+            $('skipBtn').textContent = l.skipBtn; $('playerListTitle').textContent = l.playerListTitle;
+            $('wolfChatTitle').textContent = l.wolfChatTitle; $('wolfInput').placeholder = l.wolfPH;
+            $('publicChatTitle').textContent = l.publicChatTitle; $('chatInput').placeholder = l.chatPH;
+            $('roleLabel').textContent = l.roleLabel; $('cfgTitle').textContent = l.cfgTitle;
+            if (myRole) $('roleText').textContent = l.rolePrefix + (l.roles[myRole] || myRole);
+            else $('roleText').textContent = l.roleWaiting;
+            if (currentStatus) $('phaseTag').textContent = l.phase[currentStatus] || currentStatus;
+            if (lastPlayers.length) {
+                const alive = lastPlayers.filter(p => p.isAlive).length;
+                $('aliveCount').textContent = l.aliveCount(alive, lastPlayers.length);
+            }
+            const wb = $('wolfConfirmBtn');
+            if (wb) { const mv = wolfStatusData.find(v => v.id === socket.id); wb.textContent = mv?.isConfirmed ? l.wolfConfirmYes : l.wolfConfirmNo; }
+            renderCfgGrid();
+            renderList(lastPlayers, currentStatus);
+        }
 
-<div id="modalOverlay" class="hidden">
-    <div class="modal-card">
-        <div class="modal-icon" id="modalIcon">🐺</div>
-        <div class="modal-title" id="modalTitle">遊戲結束</div>
-        <div class="modal-body" id="modalBody"></div>
-        <button class="modal-btn" id="modalBtn" onclick="closeModal()">繼續</button>
-    </div>
-</div>
+        /* ── Core State ── */
+        const socket = io("https://bot-881e.onrender.com");
+        let myName = "", myRole = null, amIHost = false, isAlive = true;
+        let wolfStatusData = [], witchPotions = { hasSave: true, hasPoison: false };
+        let lastPlayers = [], currentStatus = 'waiting', currentVotes = {};
+        let roleConfig = { wolf: 2, seer: 1, witch: 1, hunter: 0, idiot: 0, guard: 0, villager: 2 };
+        let isHunterShooting = false;
 
-<div id="deathFlash"></div>
+        /* ── Toast / Modal ── */
+        function showToast(msg, type = 'info', dur = 3500) {
+            const c = document.getElementById('toastContainer');
+            const el = document.createElement('div'); el.className = `toast toast-${type}`; el.textContent = msg;
+            c.appendChild(el);
+            setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, dur);
+        }
+        function showModal(icon, title, body, btn) {
+            document.getElementById('modalIcon').textContent = icon;
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalBody').textContent = body;
+            document.getElementById('modalBtn').textContent = btn || L().toastNextRound;
+            document.getElementById('modalOverlay').classList.remove('hidden');
+        }
+        function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); }
 
-<script>
-/* ── i18n ── */
-const LANGS = {
-    zh:{
-        logoSub:'Werewolf · 連線版', logoSubAlt:'人狼ゲーム · Online',
-        labelRoom:'房間號碼', labelName:'玩家暱稱',
-        roomPH:'輸入任意房號', namePH:'你的名字',
-        joinBtn:'⚔️ 進入村莊', hostPanelTitle:'房主控制',
-        startBtn:'⚔️ 正式開始遊戲', addBotsBtn:'🤖 補滿機器人',
-        skipBtn:'⏭️ 我發言完了，準備投票',
-        playerListTitle:'👥 玩家名單', wolfChatTitle:'🐾 狼人私密頻道',
-        wolfPH:'與同伴策劃...', publicChatTitle:'💬 公開討論', chatPH:'發言...',
-        roleLabel:'你的身分', roleWaiting:'⏳ 等待發牌...',
-        aliveCount:(a,t)=>`存活 ${a}/${t}`, meTag:'(我)',
-        cfgTitle:'角色設定',
-        cfgTotalLabel:'總人數：',
-        phase:{ waiting:'等待開局', night_guard:'守衛行動', night_wolf:'狼人行動', night_witch:'女巫行動', night_seer:'預言家查驗', day:'自由發言', voting:'投票放逐', hunter_shooting:'獵人技能' },
-        roles:{ '狼人':'狼人','預言家':'預言家','女巫':'女巫','獵人':'獵人','白癡':'白癡','守衛':'守衛','村民':'村民' },
-        roleEmoji:{ '狼人':'🐺','預言家':'🔮','女巫':'🧪','獵人':'🏹','白癡':'🃏','守衛':'🛡️','村民':'🧑' },
-        rolePrefix:'你的身分：',
-        wolfConfirmYes:'✅ 已確認殺害目標', wolfConfirmNo:'🔒 確定此殺害目標',
-        btnKill:'選', btnSave:'救', btnPoison:'毒', btnSeer:'驗', btnVote:'投', btnKick:'踢', btnGuard:'護', btnShoot:'射',
-        toastFillInput:'請輸入房號與暱稱', toastGameOver:'遊戲結束',
-        toastWinner:(w)=>`贏家是：${w}\n\n房間仍保留，可繼續下一局。`,
-        toastNextRound:'繼續下一局', toastKicked:'你被移出房間',
-        toastKickedMsg:'房主已將你從本局遊戲中移出。', toastKickedBtn:'重新進入',
-        witchNotice:(n)=>`🧪 系統通知：${n} 昨晚倒下了`,
-        hunterMsg:'你是獵人，請選擇帶走一名玩家！',
-        systemName:'系統',
-        cfgRoleNames:{ wolf:'狼人', seer:'預言家', witch:'女巫', hunter:'獵人', idiot:'白癡', guard:'守衛', villager:'村民' },
-    },
-    ja:{
-        logoSub:'Werewolf · オンライン', logoSubAlt:'狼人殺 · 連線版',
-        labelRoom:'ルーム番号', labelName:'プレイヤー名',
-        roomPH:'ルーム番号を入力', namePH:'ニックネーム',
-        joinBtn:'⚔️ 村に入る', hostPanelTitle:'ホスト操作',
-        startBtn:'⚔️ ゲーム開始', addBotsBtn:'🤖 ボットを追加',
-        skipBtn:'⏭️ 発言完了・投票へ',
-        playerListTitle:'👥 プレイヤー一覧', wolfChatTitle:'🐾 人狼チャット',
-        wolfPH:'仲間と作戦を...', publicChatTitle:'💬 公開チャット', chatPH:'発言...',
-        roleLabel:'あなたの役職', roleWaiting:'⏳ カード配布待ち...',
-        aliveCount:(a,t)=>`生存 ${a}/${t}`, meTag:'(自分)',
-        cfgTitle:'役職設定',
-        cfgTotalLabel:'合計人数：',
-        phase:{ waiting:'待機中', night_guard:'守衛の夜', night_wolf:'人狼の夜', night_witch:'魔女の夜', night_seer:'占い師の夜', day:'昼の議論', voting:'追放投票', hunter_shooting:'狩人の技' },
-        roles:{ '狼人':'人狼','預言家':'占い師','女巫':'魔女','獵人':'狩人','白癡':'道化師','守衛':'守衛','村民':'村人' },
-        roleEmoji:{ '狼人':'🐺','預言家':'🔮','女巫':'🧪','獵人':'🏹','白癡':'🃏','守衛':'🛡️','村民':'🧑' },
-        rolePrefix:'役職：',
-        wolfConfirmYes:'✅ 対象を確定済み', wolfConfirmNo:'🔒 この対象を確定する',
-        btnKill:'選', btnSave:'救', btnPoison:'毒', btnSeer:'占', btnVote:'票', btnKick:'除', btnGuard:'護', btnShoot:'射',
-        toastFillInput:'ルーム番号とニックネームを入力してください', toastGameOver:'ゲーム終了',
-        toastWinner:(w)=>`勝者：${w}\n\n次のゲームへどうぞ。`,
-        toastNextRound:'次のゲームへ', toastKicked:'退出させられました',
-        toastKickedMsg:'ホストにより退出させられました。', toastKickedBtn:'再入室',
-        witchNotice:(n)=>`🧪 通知：${n} が昨夜倒れました`,
-        hunterMsg:'あなたは狩人です。道連れにする相手を選んでください！',
-        systemName:'システム',
-        cfgRoleNames:{ wolf:'人狼', seer:'占い師', witch:'魔女', hunter:'狩人', idiot:'道化師', guard:'守衛', villager:'村人' },
-    },
-    en:{
-        logoSub:'Werewolf · Online', logoSubAlt:'狼人殺 · 人狼ゲーム',
-        labelRoom:'Room Code', labelName:'Nickname',
-        roomPH:'Enter room code', namePH:'Your name',
-        joinBtn:'⚔️ Enter the Village', hostPanelTitle:'Host Controls',
-        startBtn:'⚔️ Start Game', addBotsBtn:'🤖 Fill with Bots',
-        skipBtn:'⏭️ Done talking — go to vote',
-        playerListTitle:'👥 Players', wolfChatTitle:'🐾 Wolf Channel',
-        wolfPH:'Plot with your pack...', publicChatTitle:'💬 Public Discussion', chatPH:'Say something...',
-        roleLabel:'Your Role', roleWaiting:'⏳ Waiting for cards...',
-        aliveCount:(a,t)=>`Alive ${a}/${t}`, meTag:'(me)',
-        cfgTitle:'Role Setup',
-        cfgTotalLabel:'Total players: ',
-        phase:{ waiting:'Waiting', night_guard:'Guard Phase', night_wolf:'Wolf Phase', night_witch:'Witch Phase', night_seer:'Seer Phase', day:'Discussion', voting:'Voting', hunter_shooting:'Hunter Ability' },
-        roles:{ '狼人':'Werewolf','預言家':'Seer','女巫':'Witch','獵人':'Hunter','白癡':'Jester','守衛':'Guard','村民':'Villager' },
-        roleEmoji:{ '狼人':'🐺','預言家':'🔮','女巫':'🧪','獵人':'🏹','白癡':'🃏','守衛':'🛡️','村民':'🧑' },
-        rolePrefix:'Your role: ',
-        wolfConfirmYes:'✅ Target Confirmed', wolfConfirmNo:'🔒 Confirm This Target',
-        btnKill:'Kill', btnSave:'Save', btnPoison:'Poison', btnSeer:'Check', btnVote:'Vote', btnKick:'Kick', btnGuard:'Guard', btnShoot:'Shoot',
-        toastFillInput:'Please enter room code and nickname', toastGameOver:'Game Over',
-        toastWinner:(w)=>`Winner: ${w}\n\nRoom is kept — play another round!`,
-        toastNextRound:'Next Round', toastKicked:'You were removed',
-        toastKickedMsg:'The host has removed you from this game.', toastKickedBtn:'Rejoin',
-        witchNotice:(n)=>`🧪 Notice: ${n} was killed last night`,
-        hunterMsg:'You are the Hunter! Choose someone to take with you!',
-        systemName:'System',
-        cfgRoleNames:{ wolf:'Werewolf', seer:'Seer', witch:'Witch', hunter:'Hunter', idiot:'Jester', guard:'Guard', villager:'Villager' },
-    },
-};
+        /* ── XSS Helpers ── */
+        function safeText(s) { const d = document.createElement('span'); d.textContent = s; return d.innerHTML; }
+        function appendChat(boxId, name, text, cls) {
+            const box = document.getElementById(boxId);
+            const div = document.createElement('div'); div.className = 'chat-msg';
+            const nm = document.createElement('span'); nm.className = `chat-name ${cls}`;
+            nm.textContent = name + ':';
+            const tx = document.createElement('span'); tx.textContent = ' ' + text;
+            div.appendChild(nm); div.appendChild(tx); box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+        }
 
-let currentLang='zh';
-function L(){return LANGS[currentLang];}
-function setLang(l){
-    currentLang=l;
-    document.querySelectorAll('.lang-btn').forEach(b=>b.classList.remove('active'));
-    document.querySelector(`.lang-btn[onclick="setLang('${l}')"]`).classList.add('active');
-    applyLang();
-}
-function applyLang(){
-    const l=L();
-    const $=id=>document.getElementById(id);
-    $('logoSub').textContent=l.logoSub; $('logoSubAlt').textContent=l.logoSubAlt;
-    $('labelRoom').textContent=l.labelRoom; $('labelName').textContent=l.labelName;
-    $('roomInput').placeholder=l.roomPH; $('usernameInput').placeholder=l.namePH;
-    $('joinBtn').textContent=l.joinBtn; $('hostPanelTitle').textContent=l.hostPanelTitle;
-    $('startBtn').textContent=l.startBtn; $('addBotsBtn').textContent=l.addBotsBtn;
-    $('skipBtn').textContent=l.skipBtn; $('playerListTitle').textContent=l.playerListTitle;
-    $('wolfChatTitle').textContent=l.wolfChatTitle; $('wolfInput').placeholder=l.wolfPH;
-    $('publicChatTitle').textContent=l.publicChatTitle; $('chatInput').placeholder=l.chatPH;
-    $('roleLabel').textContent=l.roleLabel; $('cfgTitle').textContent=l.cfgTitle;
-    if(myRole) $('roleText').textContent=l.rolePrefix+(l.roles[myRole]||myRole);
-    else $('roleText').textContent=l.roleWaiting;
-    if(currentStatus) $('phaseTag').textContent=l.phase[currentStatus]||currentStatus;
-    if(lastPlayers.length){
-        const alive=lastPlayers.filter(p=>p.isAlive).length;
-        $('aliveCount').textContent=l.aliveCount(alive,lastPlayers.length);
-    }
-    const wb=$('wolfConfirmBtn');
-    if(wb){ const mv=wolfStatusData.find(v=>v.id===socket.id); wb.textContent=mv?.isConfirmed?l.wolfConfirmYes:l.wolfConfirmNo; }
-    renderCfgGrid();
-    renderList(lastPlayers,currentStatus);
-}
-
-/* ── Core State ── */
-const socket=io("https://bot-881e.onrender.com");
-let myName="",myRole=null,amIHost=false,isAlive=true;
-let wolfStatusData=[],witchPotions={hasSave:true,hasPoison:false};
-let lastPlayers=[],currentStatus='waiting',currentVotes={};
-let roleConfig={ wolf:2,seer:1,witch:1,hunter:0,idiot:0,guard:0,villager:2 };
-let isHunterShooting=false;
-
-/* ── Toast / Modal ── */
-function showToast(msg,type='info',dur=3500){
-    const c=document.getElementById('toastContainer');
-    const el=document.createElement('div'); el.className=`toast toast-${type}`; el.textContent=msg;
-    c.appendChild(el);
-    setTimeout(()=>{el.classList.add('out');setTimeout(()=>el.remove(),300);},dur);
-}
-function showModal(icon,title,body,btn){
-    document.getElementById('modalIcon').textContent=icon;
-    document.getElementById('modalTitle').textContent=title;
-    document.getElementById('modalBody').textContent=body;
-    document.getElementById('modalBtn').textContent=btn||L().toastNextRound;
-    document.getElementById('modalOverlay').classList.remove('hidden');
-}
-function closeModal(){ document.getElementById('modalOverlay').classList.add('hidden'); }
-
-/* ── XSS Helpers ── */
-function safeText(s){ const d=document.createElement('span'); d.textContent=s; return d.innerHTML; }
-function appendChat(boxId,name,text,cls){
-    const box=document.getElementById(boxId);
-    const div=document.createElement('div'); div.className='chat-msg';
-    const nm=document.createElement('span'); nm.className=`chat-name ${cls}`;
-    nm.textContent=name+':';
-    const tx=document.createElement('span'); tx.textContent=' '+text;
-    div.appendChild(nm); div.appendChild(tx); box.appendChild(div);
-    box.scrollTop=box.scrollHeight;
-}
-
-/* ── Role Config Grid ── */
-const CFG_KEYS=['wolf','seer','witch','hunter','idiot','guard','villager'];
-function renderCfgGrid(){
-    const grid=document.getElementById('roleCfgGrid'); if(!grid) return;
-    grid.innerHTML='';
-    CFG_KEYS.forEach(k=>{
-        const l=L(); const max=k==='wolf'?4:(k==='villager'?6:1);
-        const row=document.createElement('div'); row.className='role-cfg-row';
-        const nm=document.createElement('span'); nm.className='role-cfg-name';
-        nm.textContent=(l.roleEmoji[roleKeyToZh(k)]||'')+(l.cfgRoleNames[k]||k);
-        const ctrl=document.createElement('div'); ctrl.className='role-cfg-ctrl';
-        const dec=document.createElement('button'); dec.className='cfg-btn'; dec.textContent='−';
-        dec.onclick=()=>{ if(roleConfig[k]>0){roleConfig[k]--;sendCfg();} };
-        const cnt=document.createElement('span'); cnt.className='cfg-count'; cnt.id=`cfg_${k}`; cnt.textContent=roleConfig[k];
-        const inc=document.createElement('button'); inc.className='cfg-btn'; inc.textContent='+';
-        inc.onclick=()=>{ roleConfig[k]++;sendCfg(); };
-        ctrl.appendChild(dec); ctrl.appendChild(cnt); ctrl.appendChild(inc);
-        row.appendChild(nm); row.appendChild(ctrl); grid.appendChild(row);
-    });
-    updateCfgTotal();
-}
-function roleKeyToZh(k){ return{wolf:'狼人',seer:'預言家',witch:'女巫',hunter:'獵人',idiot:'白癡',guard:'守衛',villager:'村民'}[k]; }
-function updateCfgTotal(){
-    const t=Object.values(roleConfig).reduce((a,b)=>a+b,0);
-    const el=document.getElementById('cfgTotalNum'); if(el) el.textContent=t;
-}
-function sendCfg(){
-    updateCfgTotal();
-    CFG_KEYS.forEach(k=>{ const el=document.getElementById(`cfg_${k}`); if(el) el.textContent=roleConfig[k]; });
-    socket.emit('setRoleConfig', {...roleConfig});
-}
-function fillBots(){ socket.emit('addTestBots'); }
-
-/* ── Join ── */
-function join(){
-    myName=document.getElementById('usernameInput').value.trim();
-    const r=document.getElementById('roomInput').value.trim();
-    if(!r||!myName) return showToast(L().toastFillInput,'error');
-    socket.emit('joinRoom',{roomId:r,username:myName});
-}
-
-/* ── Phase ── */
-function applyPhaseStyle(status){
-    const pt=document.getElementById('phaseTag'), tb=document.getElementById('timerBox');
-    const isNight=status.startsWith('night')||status==='hunter_shooting';
-    const isDay=status==='day'||status==='voting';
-    pt.textContent=L().phase[status]||status;
-    pt.className=isNight?'phase-night':(isDay?'phase-day':'');
-    document.body.className=isNight?'night-mode':(isDay?'day-mode':'');
-    tb.className=isNight?'night-timer':'day-timer';
-}
-
-/* ── Render Players ── */
-function renderList(players,status){
-    if(!players||!players.length) return;
-    lastPlayers=players; currentStatus=status;
-    const l=L(); const list=document.getElementById('playerList'); list.innerHTML='';
-    const isWolf=status==='night_wolf', isWitch=status==='night_witch';
-    const isSeer=status==='night_seer', isVoting=status==='voting';
-    const isDay=status==='day', isWaiting=status==='waiting';
-    const isGuard=status==='night_guard', isHunter=status==='hunter_shooting';
-
-    const aliveCount=players.filter(p=>p.isAlive).length;
-    document.getElementById('aliveCount').textContent=l.aliveCount(aliveCount,players.length);
-
-    // Tally votes
-    const tally={};
-    Object.values(currentVotes).forEach(id=>{ tally[id]=(tally[id]||0)+1; });
-
-    players.forEach(p=>{
-        const isMe=p.id===socket.id;
-        const isMyVote=currentVotes[socket.id]===p.id;
-        const isWolfBuddy=myRole==='狼人'&&p.role==='狼人'&&!isMe;
-        const votesOnP=tally[p.id]||0;
-
-        const row=document.createElement('div');
-        row.className=['player-row',
-            !p.isAlive?'dead':'',
-            isMe?'is-me':'',
-            isWolfBuddy?'is-wolf-buddy':'',
-            isMyVote&&isVoting?'is-voted':'',
-            p.isIdiotRevealed?'idiot-revealed':'',
-        ].filter(Boolean).join(' ');
-
-        const avatar=document.createElement('div'); avatar.className='player-avatar';
-        avatar.textContent=p.isBot?'🤖':(isWolfBuddy?'🐺':'👤');
-
-        const nw=document.createElement('div'); nw.className='player-name-wrap';
-        let nh=''; if(p.isHost) nh+='<span class="crown">👑</span>';
-        nh+=safeText(p.name);
-        if(isMe) nh+=`<span class="me-tag">${l.meTag}</span>`;
-        if(!p.isAlive) nh+='<span class="skull-icon">💀</span>';
-        if(p.isIdiotRevealed) nh+='<span style="font-size:.7rem;color:#bcaaa4;margin-left:4px">🃏</span>';
-        nw.innerHTML=nh;
-
-        const badges=document.createElement('div'); badges.className='player-badges';
-        if(myRole==='狼人'&&isWolf){
-            wolfStatusData.filter(v=>v.targetId===p.id).forEach(v=>{
-                const d=document.createElement('div'); d.className=`wolf-dot${v.isConfirmed?' confirmed':''}`; badges.appendChild(d);
+        /* ── Role Config Grid ── */
+        const CFG_KEYS = ['wolf', 'seer', 'witch', 'hunter', 'idiot', 'guard', 'villager'];
+        function renderCfgGrid() {
+            const grid = document.getElementById('roleCfgGrid'); if (!grid) return;
+            grid.innerHTML = '';
+            CFG_KEYS.forEach(k => {
+                const l = L(); const max = k === 'wolf' ? 4 : (k === 'villager' ? 6 : 1);
+                const row = document.createElement('div'); row.className = 'role-cfg-row';
+                const nm = document.createElement('span'); nm.className = 'role-cfg-name';
+                nm.textContent = (l.roleEmoji[roleKeyToZh(k)] || '') + (l.cfgRoleNames[k] || k);
+                const ctrl = document.createElement('div'); ctrl.className = 'role-cfg-ctrl';
+                const dec = document.createElement('button'); dec.className = 'cfg-btn'; dec.textContent = '−';
+                dec.onclick = () => { if (roleConfig[k] > 0) { roleConfig[k]--; sendCfg(); } };
+                const cnt = document.createElement('span'); cnt.className = 'cfg-count'; cnt.id = `cfg_${k}`; cnt.textContent = roleConfig[k];
+                const inc = document.createElement('button'); inc.className = 'cfg-btn'; inc.textContent = '+';
+                inc.onclick = () => { roleConfig[k]++; sendCfg(); };
+                ctrl.appendChild(dec); ctrl.appendChild(cnt); ctrl.appendChild(inc);
+                row.appendChild(nm); row.appendChild(ctrl); grid.appendChild(row);
             });
+            updateCfgTotal();
         }
-        // Vote count badge (show during voting for everyone)
-        if(isVoting&&p.isAlive&&votesOnP>0){
-            const vc=document.createElement('span');
-            vc.className=`vote-count${isMyVote?' my-vote':''}`;
-            vc.textContent=`🗳️${votesOnP}`;
-            badges.appendChild(vc);
+        function roleKeyToZh(k) { return { wolf: '狼人', seer: '預言家', witch: '女巫', hunter: '獵人', idiot: '白癡', guard: '守衛', villager: '村民' }[k]; }
+        function updateCfgTotal() {
+            const t = Object.values(roleConfig).reduce((a, b) => a + b, 0);
+            const el = document.getElementById('cfgTotalNum'); if (el) el.textContent = t;
+        }
+        function sendCfg() {
+            updateCfgTotal();
+            CFG_KEYS.forEach(k => { const el = document.getElementById(`cfg_${k}`); if (el) el.textContent = roleConfig[k]; });
+            socket.emit('setRoleConfig', { ...roleConfig });
+        }
+        function fillBots() { socket.emit('addTestBots'); }
+
+        /* ── Join ── */
+        function join() {
+            myName = document.getElementById('usernameInput').value.trim();
+            const r = document.getElementById('roomInput').value.trim();
+            if (!r || !myName) return showToast(L().toastFillInput, 'error');
+            socket.emit('joinRoom', { roomId: r, username: myName });
         }
 
-        const actions=document.createElement('div'); actions.className='player-actions';
-        if(isAlive&&p.isAlive&&!isWaiting){
-            // Wolf kill (can self-knife now — no restriction)
-            if(isWolf&&myRole==='狼人'&&!isMe){
-                const b=document.createElement('button'); b.className='btn btn-danger'; b.textContent=l.btnKill;
-                b.onclick=()=>socket.emit('wolfKill',p.id); actions.appendChild(b);
-            }
-            // Wolf self-knife button (separate)
-            if(isWolf&&myRole==='狼人'&&isMe){
-                const b=document.createElement('button'); b.className='btn btn-ghost'; b.textContent='🗡️';
-                b.title='自刀'; b.onclick=()=>socket.emit('wolfKill',p.id); actions.appendChild(b);
-            }
-            if(isWitch&&myRole==='女巫'){
-                if(witchPotions.hasSave){
-                    const b=document.createElement('button'); b.className='btn btn-success'; b.textContent=l.btnSave;
-                    b.onclick=()=>socket.emit('witchAction',{type:'save',targetId:p.id}); actions.appendChild(b);
+        /* ── Phase ── */
+        function applyPhaseStyle(status) {
+            const pt = document.getElementById('phaseTag'), tb = document.getElementById('timerBox');
+            const isNight = status.startsWith('night') || status === 'hunter_shooting';
+            const isDay = status === 'day' || status === 'voting';
+            pt.textContent = L().phase[status] || status;
+            pt.className = isNight ? 'phase-night' : (isDay ? 'phase-day' : '');
+            document.body.className = isNight ? 'night-mode' : (isDay ? 'day-mode' : '');
+            tb.className = isNight ? 'night-timer' : 'day-timer';
+        }
+
+        /* ── Render Players ── */
+        function renderList(players, status) {
+            if (!players || !players.length) return;
+            lastPlayers = players; currentStatus = status;
+            const l = L(); const list = document.getElementById('playerList'); list.innerHTML = '';
+            const isWolf = status === 'night_wolf', isWitch = status === 'night_witch';
+            const isSeer = status === 'night_seer', isVoting = status === 'voting';
+            const isDay = status === 'day', isWaiting = status === 'waiting';
+            const isGuard = status === 'night_guard', isHunter = status === 'hunter_shooting';
+            const mePlayer = players.find(pl => pl.id === socket.id);
+            const aliveCount = players.filter(p => p.isAlive).length;
+            document.getElementById('aliveCount').textContent = l.aliveCount(aliveCount, players.length);
+
+            // Tally votes
+            const tally = {};
+            Object.values(currentVotes).forEach(id => { tally[id] = (tally[id] || 0) + 1; });
+
+            players.forEach(p => {
+                const isMe = p.id === socket.id;
+                const isMyVote = currentVotes[socket.id] === p.id;
+                const isWolfBuddy = myRole === '狼人' && p.role === '狼人' && !isMe;
+                const votesOnP = tally[p.id] || 0;
+
+                const row = document.createElement('div');
+                row.className = ['player-row',
+                    !p.isAlive ? 'dead' : '',
+                    isMe ? 'is-me' : '',
+                    isWolfBuddy ? 'is-wolf-buddy' : '',
+                    isMyVote && isVoting ? 'is-voted' : '',
+                    p.isIdiotRevealed ? 'idiot-revealed' : '',
+                ].filter(Boolean).join(' ');
+
+                const avatar = document.createElement('div'); avatar.className = 'player-avatar';
+                avatar.textContent = p.isBot ? '🤖' : (isWolfBuddy ? '🐺' : '👤');
+
+                const nw = document.createElement('div'); nw.className = 'player-name-wrap';
+                let nh = ''; if (p.isHost) nh += '<span class="crown">👑</span>';
+                nh += safeText(p.name);
+                if (isMe) nh += `<span class="me-tag">${l.meTag}</span>`;
+                if (!p.isAlive) nh += '<span class="skull-icon">💀</span>';
+                if (p.isIdiotRevealed) nh += '<span style="font-size:.7rem;color:#bcaaa4;margin-left:4px">🃏</span>';
+                nw.innerHTML = nh;
+
+                const badges = document.createElement('div'); badges.className = 'player-badges';
+                if (myRole === '狼人' && isWolf) {
+                    wolfStatusData.filter(v => v.targetId === p.id).forEach(v => {
+                        const d = document.createElement('div'); d.className = `wolf-dot${v.isConfirmed ? ' confirmed' : ''}`; badges.appendChild(d);
+                    });
                 }
-                if(witchPotions.hasPoison&&!isMe){
-                    const b=document.createElement('button'); b.className='btn btn-purple'; b.textContent=l.btnPoison;
-                    b.onclick=()=>socket.emit('witchAction',{type:'poison',targetId:p.id}); actions.appendChild(b);
+                // Vote count badge (show during voting for everyone)
+                if (isVoting && p.isAlive && votesOnP > 0) {
+                    const vc = document.createElement('span');
+                    vc.className = `vote-count${isMyVote ? ' my-vote' : ''}`;
+                    vc.textContent = `🗳️${votesOnP}`;
+                    badges.appendChild(vc);
                 }
-            }
-            if(isSeer&&myRole==='預言家'&&!isMe){
-                const b=document.createElement('button'); b.className='btn btn-blue'; b.textContent=l.btnSeer;
-                b.onclick=()=>socket.emit('checkRole',p.id); actions.appendChild(b);
-            }
-            if(isGuard&&myRole==='守衛'&&!isMe){
-                const b=document.createElement('button'); b.className='btn btn-success'; b.textContent=l.btnGuard;
-                b.onclick=()=>socket.emit('guardProtect',p.id); actions.appendChild(b);
-            }
-            if(isVoting&&!isMe&&!myRole==='白癡'){ // white idiot can't vote after revealed
-                const b=document.createElement('button'); b.className='btn btn-gold'; b.textContent=l.btnVote;
-                b.onclick=()=>socket.emit('castVote',p.id); actions.appendChild(b);
-            }
+
+                const actions = document.createElement('div'); actions.className = 'player-actions';
+                if (isAlive && p.isAlive && !isWaiting) {
+                    // Wolf kill (can self-knife now — no restriction)
+                    if (isWolf && myRole === '狼人' && !isMe) {
+                        const b = document.createElement('button'); b.className = 'btn btn-danger'; b.textContent = l.btnKill;
+                        b.onclick = () => socket.emit('wolfKill', p.id); actions.appendChild(b);
+                    }
+                    // Wolf self-knife button (separate)
+                    if (isWolf && myRole === '狼人' && isMe) {
+                        const b = document.createElement('button'); b.className = 'btn btn-ghost'; b.textContent = '🗡️';
+                        b.title = '自刀'; b.onclick = () => socket.emit('wolfKill', p.id); actions.appendChild(b);
+                    }
+                    if (isWitch && myRole === '女巫') {
+                        if (witchPotions.hasSave) {
+                            const b = document.createElement('button'); b.className = 'btn btn-success'; b.textContent = l.btnSave;
+                            b.onclick = () => socket.emit('witchAction', { type: 'save', targetId: p.id }); actions.appendChild(b);
+                        }
+                        if (witchPotions.hasPoison && !isMe) {
+                            const b = document.createElement('button'); b.className = 'btn btn-purple'; b.textContent = l.btnPoison;
+                            b.onclick = () => socket.emit('witchAction', { type: 'poison', targetId: p.id }); actions.appendChild(b);
+                        }
+                    }
+                    if (isSeer && myRole === '預言家' && !isMe) {
+                        const b = document.createElement('button'); b.className = 'btn btn-blue'; b.textContent = l.btnSeer;
+                        b.onclick = () => socket.emit('checkRole', p.id); actions.appendChild(b);
+                    }
+                    if (isGuard && myRole === '守衛' && !isMe) {
+                        const b = document.createElement('button'); b.className = 'btn btn-success'; b.textContent = l.btnGuard;
+                        b.onclick = () => socket.emit('guardProtect', p.id); actions.appendChild(b);
+                    }
+                    const mePlayer = players.find(pl => pl.id === socket.id);
+
+                    if (
+                        isVoting &&
+                        !isMe &&
+                        !(myRole === '白癡' && mePlayer?.isIdiotRevealed)
+                    ) {
+                        const b = document.createElement('button');
+                        b.className = 'btn btn-gold';
+                        b.textContent = l.btnVote;
+
+                        b.onclick = () => socket.emit('castVote', p.id);
+
+                        actions.appendChild(b);
+                    }
+                    // Hunter shooting
+                    if (isHunter && !isAlive && myRole === '獵人' && p.isAlive && !isMe) {
+                        const b = document.createElement('button'); b.className = 'btn btn-orange'; b.textContent = l.btnShoot;
+                        b.onclick = () => socket.emit('hunterShoot', p.id); actions.appendChild(b);
+                    }
+                    if (amIHost && isWaiting && !isMe && !p.isBot) {
+                        const b = document.createElement('button'); b.className = 'btn btn-ghost'; b.textContent = l.btnKick;
+                        b.onclick = () => socket.emit('kickPlayer', p.id); actions.appendChild(b);
+                    }
+
+                    row.appendChild(avatar); row.appendChild(nw); row.appendChild(badges); row.appendChild(actions);
+                    list.appendChild(row);
+                });
+
+            // Wolf Confirm Button
+            let wb = document.getElementById('wolfConfirmBtn');
+            if (isWolf && myRole === '狼人' && isAlive) {
+                if (!wb) { wb = document.createElement('button'); wb.id = 'wolfConfirmBtn'; wb.onclick = () => socket.emit('wolfConfirm'); list.appendChild(wb); }
+                else list.appendChild(wb);
+                const mv = wolfStatusData.find(v => v.id === socket.id);
+                wb.textContent = mv?.isConfirmed ? l.wolfConfirmYes : l.wolfConfirmNo;
+                wb.disabled = !mv?.targetId || mv?.isConfirmed;
+                wb.style.background = mv?.isConfirmed ? 'linear-gradient(135deg,#333,#444)' : 'linear-gradient(135deg,#7a1515,#c0392b)';
+            } else { if (wb) wb.remove(); }
+
+            document.getElementById('skipWrapper').classList.toggle('hidden', !isDay || !isAlive);
+            document.getElementById('wolfSection').classList.toggle('hidden', myRole !== '狼人' || isWaiting);
+            document.getElementById('hunterPanel').classList.toggle('hidden', !(isHunter && !isAlive && myRole === '獵人'));
+            if (isHunter && !isAlive && myRole === '獵人') document.getElementById('hunterMsg').textContent = l.hunterMsg;
         }
-        // Hunter shooting
-        if(isHunter&&!isAlive&&myRole==='獵人'&&p.isAlive&&!isMe){
-            const b=document.createElement('button'); b.className='btn btn-orange'; b.textContent=l.btnShoot;
-            b.onclick=()=>socket.emit('hunterShoot',p.id); actions.appendChild(b);
-        }
-        if(amIHost&&isWaiting&&!isMe&&!p.isBot){
-            const b=document.createElement('button'); b.className='btn btn-ghost'; b.textContent=l.btnKick;
-            b.onclick=()=>socket.emit('kickPlayer',p.id); actions.appendChild(b);
-        }
 
-        row.appendChild(avatar); row.appendChild(nw); row.appendChild(badges); row.appendChild(actions);
-        list.appendChild(row);
-    });
+        /* ── Socket Events ── */
+        socket.on('updatePlayers', ({ players, status, witchPotions: wp, roleConfig: rc, votes: v }) => {
+            document.getElementById('setup').classList.add('hidden');
+            document.getElementById('game').classList.remove('hidden');
+            const me = players.find(p => p.id === socket.id);
+            if (me) { isAlive = me.isAlive; amIHost = me.isHost; }
+            if (wp) witchPotions = wp;
+            if (rc) { roleConfig = rc; renderCfgGrid(); }
+            if (v) currentVotes = v;
+            applyPhaseStyle(status);
+            const hc = document.getElementById('hostControls');
+            hc.classList.toggle('hidden', !amIHost || status !== 'waiting');
+            if (status === 'waiting') {
+                document.getElementById('roleText').textContent = L().roleWaiting;
+                document.getElementById('roleText').className = '';
+                document.getElementById('roleBanner').className = '';
+                document.getElementById('nightNotice').textContent = '';
+                document.getElementById('timerBox').textContent = '—';
+                myRole = null; wolfStatusData = []; currentVotes = {};
+            }
+            if (!status.startsWith('night')) document.getElementById('nightNotice').textContent = '';
+            renderList(players, status);
+        });
 
-    // Wolf Confirm Button
-    let wb=document.getElementById('wolfConfirmBtn');
-    if(isWolf&&myRole==='狼人'&&isAlive){
-        if(!wb){ wb=document.createElement('button'); wb.id='wolfConfirmBtn'; wb.onclick=()=>socket.emit('wolfConfirm'); list.appendChild(wb); }
-        else list.appendChild(wb);
-        const mv=wolfStatusData.find(v=>v.id===socket.id);
-        wb.textContent=mv?.isConfirmed?l.wolfConfirmYes:l.wolfConfirmNo;
-        wb.disabled=!mv?.targetId||mv?.isConfirmed;
-        wb.style.background=mv?.isConfirmed?'linear-gradient(135deg,#333,#444)':'linear-gradient(135deg,#7a1515,#c0392b)';
-    } else { if(wb) wb.remove(); }
+        socket.on('assignRole', role => {
+            myRole = role;
+            const el = document.getElementById('roleText'), bn = document.getElementById('roleBanner');
+            const l = L();
+            el.textContent = l.rolePrefix + (l.roles[role] || role);
+            const cm = { '狼人': ['wolf-color', 'role-wolf'], '女巫': ['witch-color', 'role-witch'], '預言家': ['seer-color', 'role-seer'], '獵人': ['hunter-color', 'role-hunter'], '守衛': ['guard-color', 'role-guard'], '白癡': ['idiot-color', 'role-idiot'] };
+            const [tc, bc] = cm[role] || ['good-color', ''];
+            el.className = tc; bn.className = bc;
+        });
 
-    document.getElementById('skipWrapper').classList.toggle('hidden',!isDay||!isAlive);
-    document.getElementById('wolfSection').classList.toggle('hidden',myRole!=='狼人'||isWaiting);
-    document.getElementById('hunterPanel').classList.toggle('hidden',!(isHunter&&!isAlive&&myRole==='獵人'));
-    if(isHunter&&!isAlive&&myRole==='獵人') document.getElementById('hunterMsg').textContent=l.hunterMsg;
-}
+        socket.on('roleConfigUpdated', rc => { roleConfig = rc; renderCfgGrid(); });
 
-/* ── Socket Events ── */
-socket.on('updatePlayers',({players,status,witchPotions:wp,roleConfig:rc,votes:v})=>{
-    document.getElementById('setup').classList.add('hidden');
-    document.getElementById('game').classList.remove('hidden');
-    const me=players.find(p=>p.id===socket.id);
-    if(me){isAlive=me.isAlive;amIHost=me.isHost;}
-    if(wp) witchPotions=wp;
-    if(rc){ roleConfig=rc; renderCfgGrid(); }
-    if(v) currentVotes=v;
-    applyPhaseStyle(status);
-    const hc=document.getElementById('hostControls');
-    hc.classList.toggle('hidden',!amIHost||status!=='waiting');
-    if(status==='waiting'){
-        document.getElementById('roleText').textContent=L().roleWaiting;
-        document.getElementById('roleText').className='';
-        document.getElementById('roleBanner').className='';
-        document.getElementById('nightNotice').textContent='';
-        document.getElementById('timerBox').textContent='—';
-        myRole=null; wolfStatusData=[]; currentVotes={};
-    }
-    if(!status.startsWith('night')) document.getElementById('nightNotice').textContent='';
-    renderList(players,status);
-});
+        socket.on('updateWolfUI', data => { wolfStatusData = data; renderList(lastPlayers, currentStatus); });
 
-socket.on('assignRole',role=>{
-    myRole=role;
-    const el=document.getElementById('roleText'), bn=document.getElementById('roleBanner');
-    const l=L();
-    el.textContent=l.rolePrefix+(l.roles[role]||role);
-    const cm={ '狼人':['wolf-color','role-wolf'],'女巫':['witch-color','role-witch'],'預言家':['seer-color','role-seer'],'獵人':['hunter-color','role-hunter'],'守衛':['guard-color','role-guard'],'白癡':['idiot-color','role-idiot'] };
-    const [tc,bc]=cm[role]||['good-color',''];
-    el.className=tc; bn.className=bc;
-});
+        socket.on('updateVotes', votes => { currentVotes = votes; renderList(lastPlayers, currentStatus); });
 
-socket.on('roleConfigUpdated',rc=>{ roleConfig=rc; renderCfgGrid(); });
+        socket.on('timerUpdate', s => {
+            const el = document.getElementById('timerBox');
+            el.textContent = s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : s;
+        });
 
-socket.on('updateWolfUI',data=>{ wolfStatusData=data; renderList(lastPlayers,currentStatus); });
+        socket.on('receiveMessage', d => {
+            const isSystem = d.name === '系統';
+            const displayName = isSystem ? L().systemName : d.name;
+            appendChat('chatBox', displayName, d.text, isSystem ? 'system-name' : 'player-name-c');
+        });
 
-socket.on('updateVotes',votes=>{ currentVotes=votes; renderList(lastPlayers,currentStatus); });
+        socket.on('receiveWolfMessage', d => appendChat('wolfChatBox', d.name, d.text, 'wolf-name'));
 
-socket.on('timerUpdate',s=>{
-    const el=document.getElementById('timerBox');
-    el.textContent=s>=60?`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`:s;
-});
+        socket.on('witchTarget', d => {
+            if (myRole === '女巫') document.getElementById('nightNotice').textContent = L().witchNotice(d.name);
+        });
 
-socket.on('receiveMessage',d=>{
-    const isSystem=d.name==='系統';
-    const displayName=isSystem?L().systemName:d.name;
-    appendChat('chatBox',displayName,d.text,isSystem?'system-name':'player-name-c');
-});
+        socket.on('checkResult', msg => {
+            const isWolf = msg.includes('壞人') || msg.includes('狼');
+            let dm = msg;
+            if (currentLang !== 'zh') {
+                const m = msg.match(/：(.+?) 是/);
+                const name = m ? m[1] : '?';
+                dm = currentLang === 'en' ? `Result: ${name} is a ${isWolf ? '🐺 Werewolf' : '🕯️ Villager'}` : `結果：${name} は${isWolf ? '🐺 人狼' : '🕯️ 村人'}です`;
+            }
+            showToast('🔮 ' + dm, isWolf ? 'error' : 'success', 5000);
+        });
 
-socket.on('receiveWolfMessage',d=>appendChat('wolfChatBox',d.name,d.text,'wolf-name'));
+        socket.on('errorMessage', msg => {
+            // Translation map for server messages
+            const map = {
+                ja: { '❌ 遊戲進行中': '❌ ゲーム進行中です', '❌ 你今晚已經驗過人了': '❌ 今夜はすでに占いました', '✅ 你已成功救回此人': '✅ 救出に成功しました', '❌ 此人今晚並未倒下': '❌ この人は今夜倒れていません', '❌ 你已經沒有解藥了': '❌ 解毒薬がありません', '❌ 同一個晚上不能同時使用兩瓶藥': '❌ 同じ夜に2つの薬は使えません', '✅ 已投毒': '✅ 毒を盛りました', '❌ 毒藥已用完': '❌ 毒薬がありません', '✅ 守護成功': '✅ 守護成功', '❌ 不能連續兩晚守護同一人': '❌ 連続して同じ人を守護できません', '🃏 你是白癡': '🃏 あなたは道化師です！', '✅ 你已成功救回此人': '✅ 救出しました' },
+                en: { '❌ 遊戲進行中': '❌ Game already in progress', '❌ 你今晚已經驗過人了': '❌ Already used your ability tonight', '✅ 你已成功救回此人': '✅ Player saved!', '❌ 此人今晚並未倒下': '❌ This person was not killed tonight', '❌ 你已經沒有解藥了': '❌ No antidote left', '❌ 同一個晚上不能同時使用兩瓶藥': '❌ Cannot use both potions in one night', '✅ 已投毒': '✅ Poison used!', '❌ 毒藥已用完': '❌ No poison left', '✅ 守護成功': '✅ Protection applied!', '❌ 不能連續兩晚守護同一人': '❌ Cannot guard the same person two nights in a row', '🃏 你是白癡': '🃏 You are the Jester! You are immune!' },
+            };
+            const translated = (map[currentLang] || {})[msg] || msg;
+            showToast(translated, translated.startsWith('✅') || translated.startsWith('🃏') ? 'success' : 'error');
+        });
 
-socket.on('witchTarget',d=>{
-    if(myRole==='女巫') document.getElementById('nightNotice').textContent=L().witchNotice(d.name);
-});
+        socket.on('kicked', () => {
+            const l = L(); showModal('🚪', l.toastKicked, l.toastKickedMsg, l.toastKickedBtn);
+            document.getElementById('modalBtn').onclick = () => location.reload();
+        });
 
-socket.on('checkResult',msg=>{
-    const isWolf=msg.includes('壞人')||msg.includes('狼');
-    let dm=msg;
-    if(currentLang!=='zh'){
-        const m=msg.match(/：(.+?) 是/);
-        const name=m?m[1]:'?';
-        dm=currentLang==='en'?`Result: ${name} is a ${isWolf?'🐺 Werewolf':'🕯️ Villager'}`:`結果：${name} は${isWolf?'🐺 人狼':'🕯️ 村人'}です`;
-    }
-    showToast('🔮 '+dm,isWolf?'error':'success',5000);
-});
+        socket.on('gameOver', d => {
+            const f = document.getElementById('deathFlash'); f.classList.add('active'); setTimeout(() => f.classList.remove('active'), 1500);
+            setTimeout(() => {
+                const l = L(), isWolfWin = d.winner.includes('狼人');
+                let winner = d.winner;
+                if (currentLang === 'en') winner = isWolfWin ? '🐺 Werewolf Team' : '🌟 Villager Team';
+                else if (currentLang === 'ja') winner = isWolfWin ? '🐺 人狼チーム' : '🌟 村人チーム';
+                showModal(isWolfWin ? '🐺' : '🌟', l.toastGameOver, l.toastWinner(winner), l.toastNextRound);
+            }, 600);
+            myRole = null; wolfStatusData = [];
+        });
 
-socket.on('errorMessage',msg=>{
-    // Translation map for server messages
-    const map={
-        ja:{ '❌ 遊戲進行中':'❌ ゲーム進行中です','❌ 你今晚已經驗過人了':'❌ 今夜はすでに占いました','✅ 你已成功救回此人':'✅ 救出に成功しました','❌ 此人今晚並未倒下':'❌ この人は今夜倒れていません','❌ 你已經沒有解藥了':'❌ 解毒薬がありません','❌ 同一個晚上不能同時使用兩瓶藥':'❌ 同じ夜に2つの薬は使えません','✅ 已投毒':'✅ 毒を盛りました','❌ 毒藥已用完':'❌ 毒薬がありません','✅ 守護成功':'✅ 守護成功','❌ 不能連續兩晚守護同一人':'❌ 連続して同じ人を守護できません','🃏 你是白癡':'🃏 あなたは道化師です！','✅ 你已成功救回此人':'✅ 救出しました' },
-        en:{ '❌ 遊戲進行中':'❌ Game already in progress','❌ 你今晚已經驗過人了':'❌ Already used your ability tonight','✅ 你已成功救回此人':'✅ Player saved!','❌ 此人今晚並未倒下':'❌ This person was not killed tonight','❌ 你已經沒有解藥了':'❌ No antidote left','❌ 同一個晚上不能同時使用兩瓶藥':'❌ Cannot use both potions in one night','✅ 已投毒':'✅ Poison used!','❌ 毒藥已用完':'❌ No poison left','✅ 守護成功':'✅ Protection applied!','❌ 不能連續兩晚守護同一人':'❌ Cannot guard the same person two nights in a row','🃏 你是白癡':'🃏 You are the Jester! You are immune!' },
-    };
-    const translated=(map[currentLang]||{})[msg]||msg;
-    showToast(translated,translated.startsWith('✅')||translated.startsWith('🃏')?'success':'error');
-});
-
-socket.on('kicked',()=>{
-    const l=L(); showModal('🚪',l.toastKicked,l.toastKickedMsg,l.toastKickedBtn);
-    document.getElementById('modalBtn').onclick=()=>location.reload();
-});
-
-socket.on('gameOver',d=>{
-    const f=document.getElementById('deathFlash'); f.classList.add('active'); setTimeout(()=>f.classList.remove('active'),1500);
-    setTimeout(()=>{
-        const l=L(), isWolfWin=d.winner.includes('狼人');
-        let winner=d.winner;
-        if(currentLang==='en') winner=isWolfWin?'🐺 Werewolf Team':'🌟 Villager Team';
-        else if(currentLang==='ja') winner=isWolfWin?'🐺 人狼チーム':'🌟 村人チーム';
-        showModal(isWolfWin?'🐺':'🌟',l.toastGameOver,l.toastWinner(winner),l.toastNextRound);
-    },600);
-    myRole=null; wolfStatusData=[];
-});
-
-/* ── Chat ── */
-function sendChat(){ const i=document.getElementById('chatInput'),t=i.value.trim(); if(t){socket.emit('sendMessage',{name:myName,text:t});i.value='';} }
-function sendWolfChat(){ const i=document.getElementById('wolfInput'),t=i.value.trim(); if(t){socket.emit('sendWolfMessage',{name:myName,text:t});i.value='';} }
-</script>
+        /* ── Chat ── */
+        function sendChat() { const i = document.getElementById('chatInput'), t = i.value.trim(); if (t) { socket.emit('sendMessage', { name: myName, text: t }); i.value = ''; } }
+        function sendWolfChat() { const i = document.getElementById('wolfInput'), t = i.value.trim(); if (t) { socket.emit('sendWolfMessage', { name: myName, text: t }); i.value = ''; } }
+    </script>
 </body>
+
 </html>
