@@ -537,7 +537,7 @@ function renderList(players,status){
     const isSeer=status==='night_seer', isVoting=status==='voting';
     const isDay=status==='day', isWaiting=status==='waiting';
     const isGuard=status==='night_guard', isHunter=status==='hunter_shooting';
-    const mePlayer = players.find(pl => pl.id === socket.id);
+
     const aliveCount=players.filter(p=>p.isAlive).length;
     document.getElementById('aliveCount').textContent=l.aliveCount(aliveCount,players.length);
 
@@ -615,21 +615,11 @@ function renderList(players,status){
                 const b=document.createElement('button'); b.className='btn btn-success'; b.textContent=l.btnGuard;
                 b.onclick=()=>socket.emit('guardProtect',p.id); actions.appendChild(b);
             }
-            const mePlayer = players.find(pl => pl.id === socket.id);
-
-if (
-    isVoting &&
-    !isMe &&
-    !(myRole === '白癡' && mePlayer?.isIdiotRevealed)
-) {
-    const b = document.createElement('button');
-    b.className = 'btn btn-gold';
-    b.textContent = l.btnVote;
-
-    b.onclick = () => socket.emit('castVote', p.id);
-
-    actions.appendChild(b);
-}
+            if(isVoting&&!isMe&&!(myRole==='白癡'&&mePlayer?.isIdiotRevealed)){
+                const b=document.createElement('button'); b.className='btn btn-gold'; b.textContent=l.btnVote;
+                b.onclick=()=>socket.emit('castVote',p.id); actions.appendChild(b);
+            }
+        }
         // Hunter shooting
         if(isHunter&&!isAlive&&myRole==='獵人'&&p.isAlive&&!isMe){
             const b=document.createElement('button'); b.className='btn btn-orange'; b.textContent=l.btnShoot;
